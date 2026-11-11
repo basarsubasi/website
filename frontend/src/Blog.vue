@@ -2,6 +2,8 @@
 import { ref, watch, computed } from "vue";
 import { useRoute } from "vue-router";
 import { api, message } from "./api";
+import PostArticle from "./PostArticle.vue";
+import { formatPostDate } from "./post-layout";
 import type { Post, ListResponse, ItemResponse } from "./types";
 const route = useRoute(),
   posts = ref<Post[]>([]),
@@ -46,42 +48,32 @@ watch(
 );
 </script>
 <template>
-  <section class="blog">
+  <section class="blog" :aria-busy="loading">
     <p v-if="error" role="alert">{{ error }}</p>
-    <p v-else-if="loading">Loading…</p>
-    <article v-else-if="post">
-      <RouterLink to="/blog">← All posts</RouterLink>
-      <h1>{{ post.title }}</h1>
-      <time :datetime="post.created_at">{{
-        post.created_at.slice(0, 10)
-      }}</time>
-      <div class="post-body">{{ post.body }}</div>
-    </article>
-    <template v-else
-      ><h1>Blog</h1>
-      <p v-if="!posts.length">No posts yet.</p>
+    <PostArticle v-else-if="!loading && post" :title="post.title" :body="post.body" :date="post.created_at" />
+    <template v-else-if="!loading">
+      <p v-if="!posts.length">Henüz yazı yok.</p>
       <article v-for="item in posts" :key="item.id" class="post-summary">
         <time :datetime="item.created_at">{{
-          item.created_at.slice(0, 10)
+          formatPostDate(item.created_at)
         }}</time>
         <h2>
           <RouterLink :to="'/blog/' + item.slug">{{ item.title }}</RouterLink>
         </h2>
         <p>{{ item.excerpt }}</p>
-        <RouterLink :to="'/blog/' + item.slug">Read post →</RouterLink>
       </article>
       <div v-if="total > 10" class="pagination">
         <button
           :disabled="page === 1"
           @click="$router.push({ query: { page: page - 1 } })"
         >
-          Previous</button
+          Önceki</button
         ><span>{{ page }}</span
         ><button
           :disabled="page * 10 >= total"
           @click="$router.push({ query: { page: page + 1 } })"
         >
-          Next
+          Sonraki
         </button>
       </div></template
     >

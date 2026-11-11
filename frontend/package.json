@@ -11,6 +11,14 @@
     "test:ui": "playwright test"
   },
   "dependencies": {
+    "@tiptap/core": "^3.33.1",
+    "@tiptap/extension-document": "^3.33.1",
+    "@tiptap/extension-hard-break": "^3.33.1",
+    "@tiptap/extension-paragraph": "^3.33.1",
+    "@tiptap/extension-text": "^3.33.1",
+    "@tiptap/extensions": "^3.33.1",
+    "@tiptap/pm": "^3.33.1",
+    "@tiptap/vue-3": "^3.33.1",
     "vue": "^3.5.0",
     "vue-router": "^4.6.0"
   },

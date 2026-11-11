@@ -1,5 +1,5 @@
 <template>
   <p class="notice">
-    Page not found. <RouterLink to="/">Return to gallery</RouterLink>
+    Sayfa bulunamadı. <RouterLink to="/">Galeriye dön</RouterLink>
   </p>
 </template>

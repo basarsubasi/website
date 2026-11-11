@@ -77,7 +77,7 @@ func (c *readCache) fetch(objects ObjectStore, key string, old *readResult, flig
 	result := &readResult{err: err, size: len(raw)}
 	if err == nil {
 		if key == CatalogKey {
-			result.state, result.err = parseCatalog(raw, etag)
+			result.state, result.size, result.err = readCatalog(ctx, objects, raw, etag)
 		} else {
 			result.err = json.Unmarshal(raw, &result.post)
 		}

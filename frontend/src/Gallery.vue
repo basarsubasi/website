@@ -43,10 +43,9 @@ watch(
 );
 </script>
 <template>
-  <div class="homepage">
+  <div class="homepage" :aria-busy="loading">
     <p v-if="error" class="notice" role="alert">{{ error }}</p>
-    <p v-else-if="loading" class="notice" role="status">Loading photos…</p>
-    <template v-else>
+    <template v-else-if="!loading">
       <div class="grid">
         <RouterLink
           v-for="image in images"
@@ -55,22 +54,22 @@ watch(
           class="grid-item"
           ><img
             :src="image.image_url"
-            :alt="image.name || 'photo'"
+            :alt="image.name || 'Fotoğraf'"
             loading="eager"
         /></RouterLink>
       </div>
-      <p v-if="!images.length" class="notice">No photos yet.</p>
+      <p v-if="!images.length" class="notice">Henüz fotoğraf yok.</p>
       <div class="pagination">
         <button
           :disabled="page === 1"
-          aria-label="Previous page"
+          aria-label="Önceki sayfa"
           @click="$router.push({ query: { page: page - 1 } })"
         >
           &lt;</button
         ><span>{{ page }}</span
         ><button
           :disabled="page >= Math.ceil(total / 9)"
-          aria-label="Next page"
+          aria-label="Sonraki sayfa"
           @click="$router.push({ query: { page: page + 1 } })"
         >
           &gt;

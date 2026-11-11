@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { defineAsyncComponent, onMounted, ref } from "vue";
 import { api, ApiError, send, message } from "./api";
 import type {
   Session,
@@ -10,7 +10,7 @@ import type {
   ListResponse,
 } from "./types";
 import PhotoEditor from "./PhotoEditor.vue";
-import PostEditor from "./PostEditor.vue";
+const PostEditor = defineAsyncComponent(() => import("./PostEditor.vue"));
 const authenticated = ref(false),
   checking = ref(true),
   password = ref(""),
@@ -131,14 +131,14 @@ async function savePhoto(value: PhotoInput, file: File | null) {
     if (photo.value) {
       await api("/admin/images/" + photo.value.uuid, send("PUT", value));
     } else {
-      if (!file) throw new Error("Choose a photo file to upload.");
+      if (!file) throw new Error("Yüklemek için bir fotoğraf seçin.");
       const form = new FormData();
       form.append("photo", file);
       form.append("metadata", JSON.stringify(value));
       await api("/admin/images", { method: "POST", body: form });
     }
     editing.value = false;
-    notice.value = "Photo saved.";
+    notice.value = "Fotoğraf kaydedildi.";
     await load();
   } catch (e) {
     handleError(e);
@@ -155,7 +155,7 @@ async function savePost(value: PostInput) {
       send(post.value ? "PUT" : "POST", value),
     );
     editing.value = false;
-    notice.value = "Post saved.";
+    notice.value = "Yazı kaydedildi.";
     await load();
   } catch (e) {
     handleError(e);
@@ -171,7 +171,7 @@ async function remove(id: string) {
       "/admin/" + (tab.value === "photos" ? "images" : "posts") + "/" + id,
       send("DELETE"),
     );
-    notice.value = "Deleted.";
+    notice.value = "Silindi.";
     if (
       (tab.value === "photos" ? photos.value.length : posts.value.length) ===
         1 &&
@@ -187,42 +187,41 @@ async function remove(id: string) {
 }
 </script>
 <template>
-  <section class="admin">
-    <p v-if="checking" role="status">Checking session…</p>
-    <template v-else>
+  <section class="admin" :class="{ 'admin--writing': editing && tab === 'posts' }" :aria-busy="checking || loading || busy">
+    <template v-if="!checking">
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <p v-if="notice" class="success" role="status">{{ notice }}</p>
       <form v-if="!authenticated" class="login" @submit.prevent="login">
-        <h1>Admin</h1>
+        <h1>Yönetim</h1>
         <label
-          >Password<input
+          >Şifre<input
             v-model="password"
             type="password"
             autocomplete="current-password"
             required
             :disabled="busy" /></label
         ><button :disabled="busy">
-          {{ busy ? "Signing in…" : "Sign in" }}
+          Giriş yap
         </button>
       </form>
       <template v-else>
-        <div class="admin-heading">
-          <h1>Admin</h1>
-          <button :disabled="busy || loading" @click="logout">Sign out</button>
+        <div v-if="!(editing && tab === 'posts')" class="admin-heading">
+          <h1>Yönetim</h1>
+          <button :disabled="busy || loading" @click="logout">Çıkış yap</button>
         </div>
-        <nav class="admin-tabs" aria-label="Content type">
+        <nav v-if="!(editing && tab === 'posts')" class="admin-tabs" aria-label="İçerik türü">
           <button
             :aria-pressed="tab === 'photos'"
             :disabled="busy || loading"
             @click="changeTab('photos')"
           >
-            Photos</button
+            Fotoğraflar</button
           ><button
             :aria-pressed="tab === 'posts'"
             :disabled="busy || loading"
             @click="changeTab('posts')"
           >
-            Blog posts
+            Blog yazıları
           </button>
         </nav>
         <PhotoEditor
@@ -247,34 +246,33 @@ async function remove(id: string) {
               :disabled="busy || loading"
               @click="tab === 'photos' ? editPhoto(null) : editPost(null)"
             >
-              {{ tab === "photos" ? "Add photo" : "New post" }}</button
-            ><button :disabled="busy || loading" @click="load">Refresh</button>
+              {{ tab === "photos" ? "Fotoğraf ekle" : "Yeni yazı" }}</button
+            ><button :disabled="busy || loading" @click="load">Yenile</button>
           </div>
-          <p v-if="loading" role="status">Loading…</p>
-          <template v-else
+          <template v-if="!loading"
             ><p v-if="!total">
-              {{ tab === "photos" ? "No photos yet." : "No posts yet." }}
+              {{ tab === "photos" ? "Henüz fotoğraf yok." : "Henüz yazı yok." }}
             </p>
             <ul v-if="tab === 'photos'" class="admin-list">
               <li v-for="item in photos" :key="item.uuid">
                 <img
                   :src="item.image_url"
-                  :alt="item.name || 'photo'"
+                  :alt="item.name || 'Fotoğraf'"
                   loading="lazy"
                 />
                 <div class="record-info">
-                  <strong>{{ item.name || "Untitled photo" }}</strong
+                  <strong>{{ item.name || "Adsız fotoğraf" }}</strong
                   ><span
-                    >{{ item.color }} ·
+                    >{{ item.color === "bw" ? "Siyah beyaz" : "Renkli" }} ·
                     {{
                       [item.city, item.country].filter(Boolean).join(", ")
                     }}</span
                   >
                 </div>
                 <div class="actions">
-                  <button :disabled="busy" @click="editPhoto(item)">Edit</button
+                  <button :disabled="busy" @click="editPhoto(item)">Düzenle</button
                   ><button :disabled="busy" @click="deleting = item.uuid">
-                    Delete
+                    Sil
                   </button>
                 </div>
                 <div
@@ -282,13 +280,13 @@ async function remove(id: string) {
                   class="delete-confirm"
                   role="alert"
                 >
-                  Delete this photo?<button
+                  Bu fotoğraf silinsin mi?<button
                     :disabled="busy"
                     @click="remove(item.uuid)"
                   >
-                    Delete permanently</button
+                    Kalıcı olarak sil</button
                   ><button :disabled="busy" @click="deleting = null">
-                    Cancel
+                    Vazgeç
                   </button>
                 </div>
               </li>
@@ -298,17 +296,17 @@ async function remove(id: string) {
                 <div class="record-info">
                   <strong>{{ item.title }}</strong
                   ><span
-                    >{{ item.published ? "Published" : "Draft" }} · /blog/{{
+                    >{{ item.published ? "Yayında" : "Taslak" }} · /blog/{{
                       item.slug
                     }}</span
                   >
                 </div>
                 <div class="actions">
-                  <button :disabled="busy" @click="editPost(item)">Edit</button
+                  <button :disabled="busy" @click="editPost(item)">Düzenle</button
                   ><RouterLink v-if="item.published" :to="'/blog/' + item.slug"
-                    >View</RouterLink
+                    >Görüntüle</RouterLink
                   ><button :disabled="busy" @click="deleting = item.id">
-                    Delete
+                    Sil
                   </button>
                 </div>
                 <div
@@ -316,13 +314,13 @@ async function remove(id: string) {
                   class="delete-confirm"
                   role="alert"
                 >
-                  Delete this post?<button
+                  Bu yazı silinsin mi?<button
                     :disabled="busy"
                     @click="remove(item.id)"
                   >
-                    Delete permanently</button
+                    Kalıcı olarak sil</button
                   ><button :disabled="busy" @click="deleting = null">
-                    Cancel
+                    Vazgeç
                   </button>
                 </div>
               </li>
@@ -332,13 +330,13 @@ async function remove(id: string) {
                 :disabled="busy || page === 1"
                 @click="changePage(page - 1)"
               >
-                Previous</button
+                Önceki</button
               ><span>{{ page }}</span
               ><button
                 :disabled="busy || page * 20 >= total"
                 @click="changePage(page + 1)"
               >
-                Next
+                Sonraki
               </button>
             </div>
           </template>

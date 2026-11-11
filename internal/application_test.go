@@ -143,3 +143,32 @@ func TestFlyProxyConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestRestoreTimeoutConfiguration(t *testing.T) {
+	for _, raw := range []string{"", "30s", "12m", "0", "0s", "-1m", "invalid"} {
+		t.Run(raw, func(t *testing.T) {
+			env := validEnv()
+			env["RESTORE_TIMEOUT"] = raw
+			cfg, err := loadConfig([]string{"-env", ""}, lookup(env))
+			if raw == "0" || raw == "0s" || raw == "-1m" || raw == "invalid" {
+				if err == nil {
+					t.Fatal("invalid timeout accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "5m0s"
+			if raw == "30s" {
+				want = "30s"
+			}
+			if raw == "12m" {
+				want = "12m0s"
+			}
+			if cfg.RestoreTimeout.String() != want {
+				t.Fatalf("got %s want %s", cfg.RestoreTimeout, want)
+			}
+		})
+	}
+}

@@ -17,17 +17,10 @@ func (r *Repository) GetPost(ctx context.Context, slug string) (domain.Post, err
 }
 
 func (r *Repository) ListPosts(ctx context.Context, pagination domain.Pagination, drafts bool) (domain.Page[domain.Post], error) {
-	where := "kind='post'"
 	if !drafts {
-		where += " AND published=1"
+		return listFrom[domain.Post](ctx, r.db, pagination, "post_summaries", "published=1")
 	}
-	page, err := list[domain.Post](ctx, r.db, pagination, where)
-	if !drafts {
-		for i := range page.Data {
-			page.Data[i].Body = ""
-		}
-	}
-	return page, err
+	return list[domain.Post](ctx, r.db, pagination, "kind='post'")
 }
 
 func (r *Repository) CreatePost(ctx context.Context, post domain.Post) (domain.Post, error) {

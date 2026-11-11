@@ -3,6 +3,7 @@ package r2
 import (
 	"context"
 	"log"
+	"slices"
 	"time"
 )
 
@@ -38,6 +39,9 @@ func (r *Repository) cleanup(ctx context.Context) {
 }
 
 func (state catalog) references(key string) bool {
+	if slices.Contains(state.Parts, key) {
+		return true
+	}
 	for _, image := range state.Images {
 		if image.ObjectKey == key {
 			return true

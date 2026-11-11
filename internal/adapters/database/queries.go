@@ -21,17 +21,22 @@ func scan[T any](row scanner) (T, error) {
 }
 
 func list[T any](ctx context.Context, db *sql.DB, p domain.Pagination, where string, args ...any) (domain.Page[T], error) {
+	return listFrom[T](ctx, db, p, "content", where, args...)
+}
+
+// table and where are static SQL fragments supplied only by this package.
+func listFrom[T any](ctx context.Context, db *sql.DB, p domain.Pagination, table, where string, args ...any) (domain.Page[T], error) {
 	result := domain.Page[T]{Data: []T{}, Page: p.Page, Limit: p.Limit}
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return result, err
 	}
 	defer tx.Rollback()
-	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM content WHERE "+where, args...).Scan(&result.Total); err != nil {
+	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM "+table+" WHERE "+where, args...).Scan(&result.Total); err != nil {
 		return result, err
 	}
 	args = append(args, p.Limit, (p.Page-1)*p.Limit)
-	rows, err := tx.QueryContext(ctx, "SELECT payload FROM content WHERE "+where+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?", args...)
+	rows, err := tx.QueryContext(ctx, "SELECT payload FROM "+table+" WHERE "+where+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?", args...)
 	if err != nil {
 		return result, err
 	}

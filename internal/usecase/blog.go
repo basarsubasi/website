@@ -4,12 +4,15 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/domain"
 )
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+const MaxExcerptLength = 2000
 
 func (s *Service) ListPosts(ctx context.Context, p domain.Pagination, includeDrafts bool) (domain.Page[domain.Post], error) {
 	if err := validPage(p); err != nil {
@@ -23,6 +26,9 @@ func (s *Service) GetPost(ctx context.Context, slug string) (domain.Post, error)
 }
 
 func (s *Service) SavePost(ctx context.Context, id string, p domain.PostInput) (domain.Post, error) {
+	if utf8.RuneCountInString(p.Excerpt) > MaxExcerptLength {
+		return domain.Post{}, domain.Invalid("Excerpt must be at most 2000 characters")
+	}
 	p.Slug = strings.TrimSpace(p.Slug)
 	p.Title = strings.TrimSpace(p.Title)
 	if !slugPattern.MatchString(p.Slug) || len(p.Slug) > 200 || p.Title == "" || len(p.Title) > 300 || strings.TrimSpace(p.Body) == "" || (p.Published != 0 && p.Published != 1) {

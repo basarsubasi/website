@@ -1,3 +1,5 @@
+import { apiErrorMessage } from "./api-errors";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -21,7 +23,7 @@ export async function api<T>(
   if (response.status === 204) return undefined as T;
   const data = await response.json();
   if (!response.ok)
-    throw new ApiError(data.error || "Request failed", response.status);
+    throw new ApiError(apiErrorMessage(data.error), response.status);
   return data as T;
 }
 export const send = (method: string, body?: unknown): RequestInit => ({
@@ -29,4 +31,10 @@ export const send = (method: string, body?: unknown): RequestInit => ({
   ...(body === undefined ? {} : { body: JSON.stringify(body) }),
 });
 export const message = (error: unknown): string =>
-  error instanceof Error ? error.message : "Something went wrong";
+  error instanceof TypeError
+    ? "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin."
+    : error instanceof SyntaxError
+      ? "Sunucudan geçersiz bir yanıt alındı. Lütfen tekrar deneyin."
+      : error instanceof Error
+        ? error.message
+        : "Bir hata oluştu. Lütfen tekrar deneyin.";

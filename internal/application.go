@@ -34,10 +34,14 @@ type Config struct {
 	SecureCookies  bool
 	TrustedProxies []netip.Prefix
 	TrustFlyProxy  bool
+	RestoreTimeout time.Duration
 	Storage        *r2.Config
 }
 
 func (c Config) validate() error {
+	if c.RestoreTimeout < 0 {
+		return fmt.Errorf("RESTORE_TIMEOUT must be positive")
+	}
 	if c.Storage == nil {
 		return fmt.Errorf("required R2 configuration is nil")
 	}
@@ -73,7 +77,11 @@ func New(cfg Config) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	startup, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	restoreTimeout := cfg.RestoreTimeout
+	if restoreTimeout == 0 {
+		restoreTimeout = 5 * time.Minute
+	}
+	startup, cancel := context.WithTimeout(context.Background(), restoreTimeout)
 	defer cancel()
 	repo, err := database.Open(startup, cfg.DatabasePath)
 	if err != nil {
@@ -214,6 +222,14 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 		return other
 	}
 	cfg := Config{DatabasePath: fallback(*databasePath, fallback(get("DATABASE_PATH"), "data/website.db")), Address: fallback(*address, fallback(get("HTTP_ADDR"), "127.0.0.1:8080")), FrontendDir: fallback(*frontend, fallback(get("FRONTEND_DIR"), "frontend/dist")), AdminPassword: get("ADMIN_PASSWORD")}
+	cfg.RestoreTimeout = 5 * time.Minute
+	if raw := get("RESTORE_TIMEOUT"); raw != "" {
+		duration, err := time.ParseDuration(raw)
+		if err != nil || duration <= 0 {
+			return Config{}, fmt.Errorf("RESTORE_TIMEOUT must be a positive duration, for example 5m")
+		}
+		cfg.RestoreTimeout = duration
+	}
 	if raw := get("COOKIE_SECURE"); raw != "" {
 		secure, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -336,7 +352,7 @@ func (app *Application) startBackups(parent context.Context) func() {
 				maintenance = time.Now()
 			}
 			if err != nil && ctx.Err() == nil {
-				log.Printf("R2 backup pending: %v", err)
+				log.Printf("R2 backup pending (%d queued operations): %v", pending, err)
 			}
 			select {
 			case <-ctx.Done():

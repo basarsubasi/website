@@ -25,7 +25,7 @@ function chooseFile(event: Event) {
   const selected = input.files?.[0];
   if (!selected) return;
   if (selected.size > 25 * 1024 * 1024) {
-    error.value = "Photo must be at most 25 MiB.";
+    error.value = "Fotoğraf en fazla 25 MiB olabilir.";
     input.value = "";
     return;
   }
@@ -36,44 +36,44 @@ onUnmounted(() => {
   if (preview.value) URL.revokeObjectURL(preview.value);
 });
 const textFields = [
-  ["name", "Name / alt text"],
-  ["city", "City"],
-  ["country", "Country"],
+  ["name", "Ad / alternatif metin"],
+  ["city", "Şehir"],
+  ["country", "Ülke"],
 ] as const;
 </script>
 <template>
   <form class="editor" @submit.prevent="emit('save', { ...form }, file)">
-    <h2>{{ photo ? "Edit photo" : "Add photo" }}</h2>
+    <h2>{{ photo ? "Fotoğrafı düzenle" : "Fotoğraf ekle" }}</h2>
     <fieldset :disabled="busy">
       <template v-if="!photo">
         <label
-          >Photo file<input
+          >Fotoğraf dosyası<input
             type="file"
             accept="image/jpeg,image/png,image/gif"
             required
             @change="chooseFile"
         /></label>
-        <p class="hint">JPEG, PNG, or GIF. Up to 25 MiB.</p>
+        <p class="hint">JPEG, PNG veya GIF. En fazla 25 MiB.</p>
       </template>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <img
         v-if="preview || photo"
         class="upload-preview"
         :src="preview || photo?.image_url"
-        :alt="form.name || 'Photo preview'"
+        :alt="form.name || 'Fotoğraf önizlemesi'"
       />
       <div class="form-grid">
         <label
-          >Color<select v-model="form.color">
-            <option value="color">Color</option>
-            <option value="bw">Black & white</option>
+          >Renk<select v-model="form.color">
+            <option value="color">Renkli</option>
+            <option value="bw">Siyah beyaz</option>
           </select></label
         >
         <label v-for="[key, label] in textFields" :key="key"
           >{{ label }}<input v-model="form[key]" type="text"
         /></label>
         <label
-          >Year<input
+          >Yıl<input
             v-model.number="form.year_taken"
             type="number"
             min="0"
@@ -84,8 +84,8 @@ const textFields = [
       </div>
       <div class="actions">
         <button type="submit" :disabled="!photo && !file">
-          {{ busy ? (photo ? "Saving…" : "Uploading…") : "Save photo" }}</button
-        ><button type="button" @click="emit('cancel')">Cancel</button>
+          Fotoğrafı kaydet</button
+        ><button type="button" @click="emit('cancel')">Vazgeç</button>
       </div>
     </fieldset>
   </form>

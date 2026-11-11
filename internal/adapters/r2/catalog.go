@@ -30,6 +30,7 @@ type catalog struct {
 	Images   map[string]domain.Image `json:"images"`
 	Posts    map[string]postEntry    `json:"posts"`
 	Garbage  []string                `json:"pending_deletes"`
+	Parts    []string                `json:"parts,omitempty"`
 }
 
 func (r *Repository) load(ctx context.Context) error {
@@ -37,13 +38,13 @@ func (r *Repository) load(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	state, err := parseCatalog(raw, etag)
+	state, size, err := readCatalog(ctx, r.objects, raw, etag)
 	if err != nil {
 		return err
 	}
 	r.state = state
 	r.etag = etag
-	r.reads.publish(CatalogKey, &readResult{state: state, size: len(raw)})
+	r.reads.publish(CatalogKey, &readResult{state: state, size: size})
 	return nil
 }
 
@@ -54,17 +55,15 @@ func (state catalog) clone() catalog {
 		Images:   maps.Clone(state.Images),
 		Posts:    maps.Clone(state.Posts),
 		Garbage:  append([]string{}, state.Garbage...),
+		Parts:    append([]string{}, state.Parts...),
 	}
 }
 
 func (r *Repository) commit(ctx context.Context, next catalog) error {
 	next.Revision = uuid.NewV4().String()
-	raw, err := json.Marshal(next)
+	raw, size, err := r.encodeCatalog(ctx, &next)
 	if err != nil {
 		return err
-	}
-	if len(raw) > maxObjectJSON {
-		return domain.Invalid("catalog exceeds 16 MiB capacity")
 	}
 	etag, err := r.objects.PutIf(ctx, CatalogKey, raw, r.etag, false)
 	if err != nil {
@@ -81,7 +80,7 @@ func (r *Repository) commit(ctx context.Context, next catalog) error {
 	}
 	r.state = next
 	r.etag = etag
-	r.reads.publish(CatalogKey, &readResult{state: next, size: len(raw)})
+	r.reads.publish(CatalogKey, &readResult{state: next, size: size})
 	return nil
 }
 
@@ -107,20 +106,28 @@ func parseCatalog(raw []byte, etag string) (catalog, error) {
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return state, fmt.Errorf("invalid catalog JSON: %w", err)
 	}
-	if state.Version != catalogVersion || state.Revision == "" || state.Images == nil || state.Posts == nil || etag == "" {
+	if (state.Version != catalogVersion && state.Version != shardedCatalogVersion) || state.Revision == "" || state.Images == nil || state.Posts == nil || etag == "" {
 		return state, fmt.Errorf("invalid catalog version or structure")
 	}
+	if (state.Version == catalogVersion && len(state.Parts) != 0) ||
+		(state.Version == shardedCatalogVersion && (len(state.Parts) == 0 || len(state.Images) != 0 || len(state.Posts) != 0)) {
+		return state, fmt.Errorf("invalid catalog parts")
+	}
+	return state, validateCatalog(state)
+}
+
+func validateCatalog(state catalog) error {
 	slugs := map[string]bool{}
 	for id, photo := range state.Images {
 		if id != photo.UUID || photo.ObjectKey == "" || (photo.Color != "bw" && photo.Color != "color") {
-			return state, fmt.Errorf("invalid image entry in catalog")
+			return fmt.Errorf("invalid image entry in catalog")
 		}
 	}
 	for id, post := range state.Posts {
 		if id != post.Metadata.ID || post.ObjectKey == "" || post.Metadata.Slug == "" || slugs[post.Metadata.Slug] {
-			return state, fmt.Errorf("invalid post entry in catalog")
+			return fmt.Errorf("invalid post entry in catalog")
 		}
 		slugs[post.Metadata.Slug] = true
 	}
-	return state, nil
+	return nil
 }

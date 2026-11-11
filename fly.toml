@@ -8,7 +8,7 @@ kill_timeout = 30
 
 [deploy]
   strategy = "rolling"
-  wait_timeout = "5m"
+  wait_timeout = "7m"
 
 [env]
   HTTP_ADDR = "0.0.0.0:8080"
@@ -16,6 +16,7 @@ kill_timeout = 30
   FRONTEND_DIR = "/app/frontend"
   COOKIE_SECURE = "true"
   TRUST_FLY_PROXY = "true"
+  RESTORE_TIMEOUT = "5m"
 
 [http_service]
   internal_port = 8080
@@ -29,8 +30,8 @@ kill_timeout = 30
     path = "/api/health"
     interval = "30s"
     timeout = "5s"
-    # First startup may spend up to 90 seconds importing the R2 backup.
-    grace_period = "100s"
+    # Allow the configured restore timeout plus time for the server to start.
+    grace_period = "310s"
 
 [[mounts]]
   source = "website_data"

@@ -45,12 +45,9 @@ func (b *Backup) LoadSnapshot(ctx context.Context) (domain.Snapshot, error) {
 	for _, photo := range repo.state.Images {
 		result.Images = append(result.Images, photo)
 	}
-	for _, entry := range repo.state.Posts {
-		post, err := repo.readPost(ctx, entry)
-		if err != nil {
-			return result, err
-		}
-		result.Posts = append(result.Posts, post)
+	result.Posts, err = repo.restorePosts(ctx)
+	if err != nil {
+		return domain.Snapshot{}, err
 	}
 	return result, nil
 }

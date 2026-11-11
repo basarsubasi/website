@@ -26,6 +26,7 @@ Copy .env.example to .env and fill in the admin password and R2 settings. Config
 | --- | --- |
 | ADMIN_PASSWORD | Required; at least 16 characters |
 | DATABASE_PATH | Default data/website.db; override with -db |
+| RESTORE_TIMEOUT | First-start database initialization deadline; default 5m; accepts Go durations such as 30s or 10m |
 | R2_ACCOUNT_ID | Required unless R2_ENDPOINT is supplied |
 | R2_ENDPOINT | Optional endpoint override |
 | R2_BUCKET | Required public bucket for photos and backups |
@@ -120,7 +121,9 @@ Use one authoritative SQLite database per R2 bucket. Do not run independently re
 `fly.toml` configures HTTPS on port 8080, secure cookies, a persistent `/data`
 volume, SQLite health checks, and graceful shutdown. The Machine stays running
 so the R2 backup worker continues even without incoming requests. First startup
-gets a 100-second health-check grace period for the initial R2 import.
+gets a 310-second health-check grace period for the initial R2 import, with
+`RESTORE_TIMEOUT=5m` and a seven-minute deployment wait. If you increase the
+restore timeout, increase the Fly grace period and deployment wait as well.
 
 Create the app, choose its region, and set the required secrets before deploying:
 
@@ -164,13 +167,24 @@ The background worker checks for queued work every five seconds. It sends operat
 
 R2 contains:
 
-- catalog.json: image metadata, post summaries, object pointers, and pending deletions.
+- catalog.json: image metadata, post summaries, object pointers, and pending deletions; large catalogs use a version-2 manifest referencing immutable parts under catalog/.
 - `photos/<uuid>.<extension>`: image files. Fixtures use an additional unique path component.
 - `posts/<post-uuid>/<revision-uuid>.json`: complete posts, including drafts.
 
 ETag conditions protect catalog writes. Post updates upload a new object before switching the catalog pointer. Replaced/deleted objects are queued for cleanup. This is a **latest-state mirror**, not historical versions: deleting a post or image also deletes its remote copy after synchronization. A crash between upload and catalog commit can leave an orphan object. Public CDN caches may retain deleted files until expiration or purge.
 
-On first initialization, the app imports the existing R2 catalog and post bodies into SQLite in one transaction, preserving IDs, timestamps, and image URLs. It records an initialization marker even for an empty catalog. Later restarts never import again, so deleted local content cannot reappear from a lagging backup. Stop the old R2-only writer before switching to this version.
+On first initialization, the app imports the existing R2 catalog and post bodies into SQLite in one transaction, preserving IDs, timestamps, and image URLs. Post downloads use up to eight concurrent requests, each with a ten-second timeout, within `RESTORE_TIMEOUT`. A failed or canceled import leaves the database uninitialized so it can retry safely. It records an initialization marker even for an empty catalog. Later restarts never import again, so deleted local content cannot reappear from a lagging backup. Stop the old R2-only writer before switching to this version.
+
+Public blog lists read a separate summary table, maintained transactionally with
+the full post. Existing databases are backfilled automatically on startup.
+New post edits limit excerpts to 2,000 characters; existing backups retain their
+complete excerpts. Catalogs larger than 4 MiB split into bounded immutable parts,
+so their total record size can exceed the former 16 MiB single-object limit.
+The root manifest is updated conditionally only after every part is uploaded;
+retired parts are cleaned through the existing durable deletion queue. Existing
+version-1 catalogs remain readable, but older binaries cannot read version-2
+manifests after a large catalog is upgraded. Do not roll back to an older reader
+against an upgraded bucket.
 
 To recover after losing a database, stop the server and start it with a **new** database path against the same bucket:
 

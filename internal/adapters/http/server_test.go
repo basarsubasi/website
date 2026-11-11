@@ -227,7 +227,7 @@ func TestValidationAndCrossOrigin(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
 	req.Header.Set("Origin", "https://evil.example")
 	c.do(req, 403)
-	for _, path := range []string{"/", "/bw-photos", "/color-photos", "/blog/post", "/image/id", "/admin"} {
+	for _, path := range []string{"/", "/gallery", "/bw-photos", "/color-photos", "/blog/post", "/image/id", "/admin"} {
 		c.request("GET", path, nil, 200)
 	}
 	c.request("GET", "/missing.js", nil, 404)

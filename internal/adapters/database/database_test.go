@@ -233,3 +233,53 @@ func TestImportFailureIsAtomicAndRetryable(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLargeLegacyExcerptsDoNotBlockBackupQueue(t *testing.T) {
+	ctx := context.Background()
+	objects := testutil.NewObjects()
+	backup := r2.NewBackup(objects)
+	repo := open(t, filepath.Join(t.TempDir(), "site.db"), backup)
+	excerpt := strings.Repeat("x", 950<<10)
+	ids := []string{}
+	for i := 0; i < 18; i++ {
+		id := uuid.NewV4().String()
+		post, err := repo.CreatePost(ctx, domain.Post{ID: id, Slug: id, Title: "Legacy", Excerpt: excerpt, Body: "Full body", Published: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, post.ID)
+	}
+	if err := repo.SyncBackups(ctx, backup); err != nil {
+		t.Fatal(err)
+	}
+	if pending, _ := repo.PendingBackups(ctx); pending != 0 {
+		t.Fatalf("queue blocked: %d", pending)
+	}
+	restored := open(t, filepath.Join(t.TempDir(), "restored.db"), r2.NewBackup(objects))
+	page, err := restored.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 100}, true)
+	if err != nil || len(page.Data) != 18 {
+		t.Fatalf("restore count: %d error: %v", len(page.Data), err)
+	}
+	for _, p := range page.Data {
+		if p.Excerpt != excerpt || p.Body != "Full body" {
+			t.Fatal("legacy data lost")
+		}
+	}
+	for _, id := range ids {
+		if err := repo.DeletePost(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := repo.SyncBackups(ctx, backup); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := r2.NewBackup(objects).LoadSnapshot(ctx)
+	if err != nil || len(snapshot.Posts) != 0 {
+		t.Fatalf("deletes blocked: %v", err)
+	}
+	for _, key := range objects.Keys() {
+		if strings.HasPrefix(key, "catalog/") || strings.HasPrefix(key, "posts/") {
+			t.Fatalf("retired object not cleaned: %s", key)
+		}
+	}
+}

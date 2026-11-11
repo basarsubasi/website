@@ -13,7 +13,7 @@
 **/*.out
 **/.DS_Store
 coverage.*
-
+scripts/w
 .tmp
 frontend/public/seed
 

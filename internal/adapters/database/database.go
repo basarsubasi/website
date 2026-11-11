@@ -72,6 +72,10 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := repo.migratePostSummaries(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return repo, nil
 }
 

@@ -41,25 +41,8 @@ img {
   }
   
 
-  .page-header {
-    text-align: left;
-    font-size: 20px; /* Make the text prominent */
-    font-weight: bold;
-    padding-top: 20px; /* Add spacing above and below the text */
-    padding-left: 20px;
-    background-color: white; /* Light gray background for the header */
-    color: black; /* Dark text color */
-    display: flex; /* Enable flexbox to align the items */
-    gap: 20px; /* Add space between links */
-    align-items: center; /* Vertically align items in the center */
-  }
-  .page-header .main-title {
-    font-size: 24px; /* Make the text prominent */
-    margin-right: 30px; /* Increase space between "basarsubasi's photos" and the links */
-  }
-  
   .content {
-    flex: 1; /* Push the footer to the bottom if content is shorter */
+    flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -68,37 +51,15 @@ img {
 
   }
   
-  .page-footer {
-    text-align: center;
-    font-size: 12px;
-    color: #555;
-    padding: 10px 0;
-    background: white; /* Ensure it blends with the layout */
-    background-color: white; /* Add your desired background color here */
-
-  }
   
 
   /* Additions for Layout.css */
 @media (max-width: 768px) {
 
- .page-header .main-title .title-photos {
-    display: block; /* Force "photos" to wrap to a new line */
-  }
-
-  .page-header {
-    font-size: 18px; /* Adjust font size for headers */
-    padding-left: 15px; /* Adjust padding */
-  }
-
   .content {
     padding: 10px; /* Add padding to content area */
   }
 
-  .page-footer {
-    font-size: 10px; /* Adjust footer font size */
-    padding: 8px 0; /* Adjust footer padding */
-  }
 }
 .homepage {
   padding: 0 50px; /* Add 20px spacing on left and right */
@@ -177,79 +138,24 @@ img {
 }
 
 
+.content:has(> .single-image-page) {
+  padding: 0;
+}
+
 .single-image-page {
-  display: flex;
-  flex-direction: column;
-  align-items: center; /* Centers content horizontally */
-  background-color: white; /* Background color */
-  padding: 0 40px; /* Horizontal padding for breathing room */
-  gap: 10px; /* Add some space between elements */
-  min-height: 100vh; /* Ensure the page covers the full viewport */
-}
-
-.image-container {
-  width: 100%; /* Use full width */
-  max-height: 70vh; /* Restrict the image container's height */
-  display: flex;
-  justify-content: center; /* Center the image horizontally */
-  align-items: center; /* Center the image vertically */
-  padding-bottom: 30px; /* Add space between the image and metadata */
-  flex-shrink: 0; /* Prevent shrinking */
-  padding-top: 150px;
-}
-
-.image-container img {
-  max-width: 80%; /* Allow the image to scale up horizontally */
-  max-height: 80%; /* Allow the image to scale up vertically */
-  object-fit: contain; /* Ensure the entire image is visible without distortion */
-  display: block;
-}
-
-/* Limit image dimensions */
-.image-container img {
-  max-width: 960px; /* Set a maximum width for images */
-  max-height: 640px; /* Set a maximum height for images */
-  width: auto; /* Maintain aspect ratio */
-  height: auto; /* Maintain aspect ratio */
-}
-
-.image-metadata {
-  display: flex;
-  flex-wrap: wrap; /* Wrap metadata items to the next line if needed */
-  justify-content: center; /* Center the metadata */
-  text-align: center;
-  font-size: 14px;
-  max-width: 800px; /* Restrict the width of the metadata container */
+  --image-padding: clamp(16px, 3vw, 40px);
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
   width: 100%;
-  gap: 15px; /* Add spacing between metadata items */
-  margin-top: 100px; /* Add space between image and metadata */
-  line-height: 0;
-  padding-bottom: 10px; /* Prevent metadata from touching the bottom */
-  position: relative; /* Stay in the natural flow of the document */
-  top: 0; /* Ensure it doesn't move up */
+  min-height: 100svh;
+  padding: var(--image-padding);
 }
 
-
-/* Additions for SingleImagePage.css */
-@media (max-width: 768px) {
-  .single-image-page {
-    padding: 0 20px; /* Reduce padding for smaller screens */
-    gap: 8px; /* Adjust gap between elements */
-  }
-
-  .image-container {
-    padding-top: 100px; /* Adjust padding above the image */
-    padding-bottom: 20px; /* Adjust padding below the image */
-  }
-
-  .image-container img {
-    max-width: 100%; /* Ensure the image scales to fit */
-    max-height: 60vh; /* Restrict height for smaller screens */
-  }
-
-  .image-metadata {
-    font-size: 12px; /* Reduce font size */
-    line-height: 1.2; /* Adjust line spacing */
-    margin-top: 50px; /* Reduce spacing above metadata */
-  }
+.single-image-page img {
+  max-width: min(100%, 960px);
+  max-height: min(640px, calc(100svh - 2 * var(--image-padding)));
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
