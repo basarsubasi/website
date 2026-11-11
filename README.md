@@ -277,5 +277,46 @@ the smoke client forwards the cookie explicitly because its local URL is HTTP.
 
 All test containers, volumes, and image tags are removed on success or failure.
 The production image does not contain the fixture binary. Both test suites are
-local commands; no CI workflow is configured. Live Fly/R2 credentials, TLS, and
-edge routing still require a staging deployment check.
+local commands. Live Fly/R2 credentials, TLS, and edge routing still require a
+staging deployment check.
+
+### Scheduled dependency checks
+
+GitHub Actions runs dependency security checks daily at 06:23 UTC, on pushes to
+`main`, on pull requests, and manually from the Actions tab. `govulncheck` fails
+for reachable Go vulnerabilities; `npm audit` fails for reported frontend
+vulnerabilities, including development dependencies. Tool failures also fail
+the workflow. These scans require no Fly or R2 credentials.
+
+Go scanning uses `GOFLAGS=-mod=readonly` to resolve `go.mod`/`go.sum` instead of
+the local vendor tree. Dependencies are still checked for vulnerabilities.
+Pushes and PRs changing only `vendor/` do not trigger the security workflow;
+the daily schedule still checks the current default branch.
+
+Renovate runs daily at 06:47 UTC, or manually, and opens update PRs for Go, npm,
+Docker images, GitHub Actions, and the scanner tools. Ordinary updates do not
+fail the security workflow; they appear as PRs and in the Dependency Dashboard
+issue. Renovate refreshes existing update PRs on subsequent runs; pending updates
+do not fail the workflow. Updates are never automatically merged. `vendor/` is ignored during
+dependency discovery, but Renovate automatically regenerates it alongside Go
+module updates. Go module major upgrades can require manual import-path changes
+and `make tidy`; Renovate does not support automatically vendoring those upgrades.
+See [Renovate's Go support](https://docs.renovatebot.com/golang/).
+
+To enable Renovate, add a repository Actions secret named `RENOVATE_TOKEN` in
+GitHub Settings → Secrets and variables → Actions. Use a fine-grained PAT scoped
+to this repository with Contents, Pull requests, Issues, Commit statuses, and
+Workflows read/write, plus Dependabot alerts read access. Organization-owned
+repositories also need Members read access. Alternatively, a classic PAT needs
+`repo` (or `public_repo` for a public repository) and `workflow` scopes.
+The job reports a clear failure if the secret is missing. See
+[Renovate token permissions](https://docs.renovatebot.com/modules/platform/github/).
+
+Commit and push these files to the default branch to activate the schedules.
+Enable Actions email notifications (optionally failures only) in your GitHub
+notification settings, and watch the repository's pull requests/issues for
+update notifications. Scheduled-run notifications go to the schedule's creator
+or the last person who changed its cron expression. GitHub may disable scheduled
+workflows in inactive public repositories after 60 days; re-enable them in the
+Actions tab if that happens. See
+[workflow notifications](https://docs.github.com/en/actions/concepts/workflows-and-actions/notifications-for-workflow-runs).
