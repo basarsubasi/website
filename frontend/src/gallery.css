@@ -1,0 +1,255 @@
+body {
+  margin: 0;
+  font-family: 'Arial', sans-serif;
+  background-color: #f4f4f4;
+  color: #333;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.image-card {
+  position: relative;
+  background-color: white;
+  border: 4px solid white;
+  transition: transform 0.3s ease;
+}
+
+.image-card:hover {
+  transform: scale(1.05);
+}
+
+.layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh; /* Ensure the layout takes up the full viewport height */
+  }
+  
+
+  .page-header {
+    text-align: left;
+    font-size: 20px; /* Make the text prominent */
+    font-weight: bold;
+    padding-top: 20px; /* Add spacing above and below the text */
+    padding-left: 20px;
+    background-color: white; /* Light gray background for the header */
+    color: black; /* Dark text color */
+    display: flex; /* Enable flexbox to align the items */
+    gap: 20px; /* Add space between links */
+    align-items: center; /* Vertically align items in the center */
+  }
+  .page-header .main-title {
+    font-size: 24px; /* Make the text prominent */
+    margin-right: 30px; /* Increase space between "basarsubasi's photos" and the links */
+  }
+  
+  .content {
+    flex: 1; /* Push the footer to the bottom if content is shorter */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: white; /* Add your desired background color here */
+
+  }
+  
+  .page-footer {
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+    padding: 10px 0;
+    background: white; /* Ensure it blends with the layout */
+    background-color: white; /* Add your desired background color here */
+
+  }
+  
+
+  /* Additions for Layout.css */
+@media (max-width: 768px) {
+
+ .page-header .main-title .title-photos {
+    display: block; /* Force "photos" to wrap to a new line */
+  }
+
+  .page-header {
+    font-size: 18px; /* Adjust font size for headers */
+    padding-left: 15px; /* Adjust padding */
+  }
+
+  .content {
+    padding: 10px; /* Add padding to content area */
+  }
+
+  .page-footer {
+    font-size: 10px; /* Adjust footer font size */
+    padding: 8px 0; /* Adjust footer padding */
+  }
+}
+.homepage {
+  padding: 0 50px; /* Add 20px spacing on left and right */
+  margin: 0; /* Remove unnecessary margins */
+  width: 100%; /* Allow the container to span the full width */
+  padding-top: 20px;
+  padding-bottom: 20px;
+  box-sizing: border-box; /* Include padding in the element's total width */
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 equal-width columns */
+  row-gap: 35px; /* Spacing between grid items */
+  column-gap: 25px;
+
+  width: 100%; /* Grid spans the full width of its container */
+}
+
+.grid-item {
+  height: 300px; /* Uniform height for grid items */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden; /* Prevent content overflow */
+}
+
+.grid-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ensure images fill their container without distortion */
+}
+
+
+/* Additions for Homepage.css */
+@media (max-width: 768px) {
+  .homepage {
+    padding: 0 20px; /* Reduce padding for smaller screens */
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr); /* Switch to 2 columns on smaller screens */
+    column-gap: 15px; /* Adjust column spacing */
+    row-gap: 20px; /* Adjust row spacing */
+  }
+
+  .grid-item {
+    height: 200px; /* Reduce grid item height for smaller screens */
+  }
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  gap: 10px; /* Space between elements */
+}
+
+.pagination button {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 5px 10px;
+}
+
+.pagination button:disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.pagination span {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+
+.single-image-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Centers content horizontally */
+  background-color: white; /* Background color */
+  padding: 0 40px; /* Horizontal padding for breathing room */
+  gap: 10px; /* Add some space between elements */
+  min-height: 100vh; /* Ensure the page covers the full viewport */
+}
+
+.image-container {
+  width: 100%; /* Use full width */
+  max-height: 70vh; /* Restrict the image container's height */
+  display: flex;
+  justify-content: center; /* Center the image horizontally */
+  align-items: center; /* Center the image vertically */
+  padding-bottom: 30px; /* Add space between the image and metadata */
+  flex-shrink: 0; /* Prevent shrinking */
+  padding-top: 150px;
+}
+
+.image-container img {
+  max-width: 80%; /* Allow the image to scale up horizontally */
+  max-height: 80%; /* Allow the image to scale up vertically */
+  object-fit: contain; /* Ensure the entire image is visible without distortion */
+  display: block;
+}
+
+/* Limit image dimensions */
+.image-container img {
+  max-width: 960px; /* Set a maximum width for images */
+  max-height: 640px; /* Set a maximum height for images */
+  width: auto; /* Maintain aspect ratio */
+  height: auto; /* Maintain aspect ratio */
+}
+
+.image-metadata {
+  display: flex;
+  flex-wrap: wrap; /* Wrap metadata items to the next line if needed */
+  justify-content: center; /* Center the metadata */
+  text-align: center;
+  font-size: 14px;
+  max-width: 800px; /* Restrict the width of the metadata container */
+  width: 100%;
+  gap: 15px; /* Add spacing between metadata items */
+  margin-top: 100px; /* Add space between image and metadata */
+  line-height: 0;
+  padding-bottom: 10px; /* Prevent metadata from touching the bottom */
+  position: relative; /* Stay in the natural flow of the document */
+  top: 0; /* Ensure it doesn't move up */
+}
+
+
+/* Additions for SingleImagePage.css */
+@media (max-width: 768px) {
+  .single-image-page {
+    padding: 0 20px; /* Reduce padding for smaller screens */
+    gap: 8px; /* Adjust gap between elements */
+  }
+
+  .image-container {
+    padding-top: 100px; /* Adjust padding above the image */
+    padding-bottom: 20px; /* Adjust padding below the image */
+  }
+
+  .image-container img {
+    max-width: 100%; /* Ensure the image scales to fit */
+    max-height: 60vh; /* Restrict height for smaller screens */
+  }
+
+  .image-metadata {
+    font-size: 12px; /* Reduce font size */
+    line-height: 1.2; /* Adjust line spacing */
+    margin-top: 50px; /* Reduce spacing above metadata */
+  }
+}

@@ -31,3 +31,23 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Website build output and local data
+/frontend/node_modules/
+/frontend/dist/
+/bin/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+
+# Development fixtures and Air builds
+/.tmp/
+/frontend/public/seed/
+
+# SQLite content volume and backup worker lock
+/data/
+*.db.backup.lock

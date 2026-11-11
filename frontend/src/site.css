@@ -1,0 +1,167 @@
+/* Gallery styles live in gallery.css, ported unchanged from the original. */
+.notice {
+  padding: 24px;
+  text-align: center;
+}
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid #555;
+  outline-offset: 4px;
+}
+.blog,
+.admin {
+  width: min(820px, 100%);
+  box-sizing: border-box;
+  padding: 50px 24px;
+  align-self: center;
+}
+.blog h1 {
+  font-size: 32px;
+  line-height: 1.2;
+}
+.blog a:hover {
+  text-decoration: underline;
+}
+.blog time,
+.record-info span,
+.hint {
+  color: #666;
+  font-size: 14px;
+}
+.post-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+  margin-top: 32px;
+}
+.post-summary {
+  border-bottom: 1px solid #ddd;
+  padding: 24px 0;
+}
+.post-summary h2 {
+  margin: 10px 0;
+}
+.post-summary p {
+  line-height: 1.6;
+}
+.admin button {
+  border: 1px solid #ccc;
+  background: white;
+  color: #222;
+  padding: 9px 14px;
+  border-radius: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+.admin button:hover:not(:disabled) {
+  background: #f4f4f4;
+}
+.admin button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.admin input,
+.admin textarea,
+.admin select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px;
+  font: inherit;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  background: white;
+  color: #222;
+}
+.admin textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+.admin label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+.admin fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.admin-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.admin-tabs,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+}
+.admin-tabs button[aria-pressed="true"] {
+  background: #222;
+  color: white;
+  border-color: #222;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 20px;
+}
+.admin-list {
+  list-style: none;
+  padding: 0;
+}
+.admin-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  border-bottom: 1px solid #ddd;
+  padding: 14px 0;
+}
+.admin-list img {
+  width: 80px;
+  height: 65px;
+  object-fit: cover;
+}
+.record-info {
+  flex: 1;
+  min-width: 120px;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.delete-confirm {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  background: #fff4f2;
+}
+.error {
+  padding: 12px;
+  color: #8c2014;
+  background: #fff4f2;
+}
+.success {
+  padding: 12px;
+  color: #245528;
+  background: #f0f7ee;
+}
+.login {
+  max-width: 360px;
+  margin: 0 auto;
+}
+@media (max-width: 520px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
