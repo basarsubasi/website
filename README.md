@@ -33,6 +33,9 @@ Copy .env.example to .env and fill in the admin password and R2 settings. Config
 | R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY | Required S3 credentials with Object Read & Write access |
 | R2_PUBLIC_URL | Required bucket custom domain or enabled development public URL |
 | HTTP_ADDR | Default 127.0.0.1:8080; override with -addr |
+| HTTP_MAX_REQUESTS | Maximum active handlers, including health checks and static files; default 32 |
+| HTTP_MAX_UPLOADS | Maximum active image uploads, within the request limit; default 2 |
+| HTTP_MAX_CONNECTIONS | Maximum accepted connections, including idle keep-alive connections; default 128 |
 | FRONTEND_DIR | Default frontend/dist; override with -frontend |
 | COOKIE_SECURE | Default false; set true behind HTTPS |
 | TRUSTED_PROXY_CIDRS | Optional comma-separated trusted reverse proxy CIDRs |
@@ -40,6 +43,8 @@ Copy .env.example to .env and fill in the admin password and R2 settings. Config
 | ENV_FILE | Default .env; override with -env; an empty value disables file loading |
 
 Missing required settings or an unusable SQLite file stops startup. A new database requires R2 to initialize/import its backup. An already initialized database can start, serve reads, and save post/metadata edits while R2 is unavailable. New image uploads still require R2.
+
+Concurrency limits are per process and must be positive integers. Excess requests or uploads receive `503 Service Unavailable` with `Retry-After: 1` without waiting for a handler slot. At the connection limit, the server stops accepting until a connection closes; additional connections may wait in the OS backlog or time out. Upload admission happens after authentication and before reading multipart data. These are best-effort overload controls for the 256 MB Fly machine, not a hard cap on total goroutines or memory. Background workers and Go/library internals use additional goroutines.
 
 **Everything in the bucket is public, including draft post backups.** Draft status hides posts only from the public website/API. Credentials remain on the Go server. The app does not configure bucket public access.
 
@@ -118,9 +123,13 @@ Use one authoritative SQLite database per R2 bucket. Do not run independently re
 
 ### Fly.io
 
+The production domain is `basarsubasi.com.tr`. The blog is served at `/` (also available at `/blog`), photos at `/gallery`, and the admin panel at `/admin`.
+
 `fly.toml` configures HTTPS on port 8080, secure cookies, a persistent `/data`
-volume, SQLite health checks, and graceful shutdown. The Machine stays running
-so the R2 backup worker continues even without incoming requests. First startup
+volume, SQLite health checks, and graceful shutdown. The 256 MB Machine stops
+when idle and starts again on incoming traffic. Pending R2 backups remain in
+SQLite while stopped and resume after startup; admin sessions reset on restart.
+First startup
 gets a 310-second health-check grace period for the initial R2 import, with
 `RESTORE_TIMEOUT=5m` and a seven-minute deployment wait. If you increase the
 restore timeout, increase the Fly grace period and deployment wait as well.

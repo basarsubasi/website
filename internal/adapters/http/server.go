@@ -16,6 +16,8 @@ type Config struct {
 	SecureCookies  bool
 	TrustedProxies []netip.Prefix
 	TrustFlyProxy  bool
+	MaxRequests    int
+	MaxUploads     int
 }
 
 type Server struct {
@@ -27,6 +29,12 @@ type Server struct {
 }
 
 func New(service *usecase.Service, cfg Config) http.Handler {
+	if cfg.MaxRequests <= 0 {
+		cfg.MaxRequests = DefaultMaxRequests
+	}
+	if cfg.MaxUploads <= 0 {
+		cfg.MaxUploads = DefaultMaxUploads
+	}
 	s := &Server{service: service, cfg: cfg, sessions: make(map[[32]byte]time.Time)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +54,7 @@ func New(service *usecase.Service, cfg Config) http.Handler {
 	mux.HandleFunc("GET /api/posts", s.listPosts)
 	mux.HandleFunc("GET /api/posts/{slug}", s.getPost)
 	mux.Handle("GET /api/admin/posts", s.admin(http.HandlerFunc(s.listPosts)))
-	mux.Handle("POST /api/admin/images", s.admin(http.HandlerFunc(s.uploadImage)))
+	mux.Handle("POST /api/admin/images", s.admin(limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadImage))))
 	mux.Handle("PUT /api/admin/images/{uuid}", s.admin(http.HandlerFunc(s.saveImage)))
 	mux.Handle("DELETE /api/admin/images/{uuid}", s.admin(http.HandlerFunc(s.deleteImage)))
 	mux.Handle("POST /api/admin/posts", s.admin(http.HandlerFunc(s.savePost)))
@@ -62,6 +70,7 @@ func New(service *usecase.Service, cfg Config) http.Handler {
 		s.frontend(w, r)
 	})
 	protection := http.NewCrossOriginProtection()
+	handler := limitConcurrency(cfg.MaxRequests, protection.Handler(mux))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -69,6 +78,6 @@ func New(service *usecase.Service, cfg Config) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
-		protection.Handler(mux).ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 	})
 }

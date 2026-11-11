@@ -172,3 +172,32 @@ func TestRestoreTimeoutConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestConcurrencyLimitConfiguration(t *testing.T) {
+	for _, name := range []string{"HTTP_MAX_REQUESTS", "HTTP_MAX_UPLOADS", "HTTP_MAX_CONNECTIONS"} {
+		for _, raw := range []string{"", "7", "0", "-1", "invalid", "999999999999999999999999"} {
+			t.Run(name+"/"+raw, func(t *testing.T) {
+				env := validEnv()
+				env[name] = raw
+				cfg, err := loadConfig([]string{"-env", ""}, lookup(env))
+				if raw != "" && raw != "7" {
+					if err == nil {
+						t.Fatal("invalid limit accepted")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := map[string]int{"HTTP_MAX_REQUESTS": cfg.MaxRequests, "HTTP_MAX_UPLOADS": cfg.MaxUploads, "HTTP_MAX_CONNECTIONS": cfg.MaxConnections}[name]
+				want := map[string]int{"HTTP_MAX_REQUESTS": 32, "HTTP_MAX_UPLOADS": 2, "HTTP_MAX_CONNECTIONS": 128}[name]
+				if raw == "7" {
+					want = 7
+				}
+				if got != want {
+					t.Fatalf("limit = %d; want %d", got, want)
+				}
+			})
+		}
+	}
+}

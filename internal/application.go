@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -35,10 +36,16 @@ type Config struct {
 	TrustedProxies []netip.Prefix
 	TrustFlyProxy  bool
 	RestoreTimeout time.Duration
+	MaxRequests    int
+	MaxUploads     int
+	MaxConnections int
 	Storage        *r2.Config
 }
 
 func (c Config) validate() error {
+	if c.MaxRequests < 0 || c.MaxUploads < 0 || c.MaxConnections < 0 {
+		return fmt.Errorf("HTTP concurrency limits must be positive (or zero for defaults)")
+	}
 	if c.RestoreTimeout < 0 {
 		return fmt.Errorf("RESTORE_TIMEOUT must be positive")
 	}
@@ -93,7 +100,11 @@ func New(cfg Config) (*Application, error) {
 		return nil, fmt.Errorf("initialize database from R2: %w", err)
 	}
 	service := usecase.New(repo, objects)
-	handler := httpadapter.New(service, httpadapter.Config{Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir, SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy})
+	handler := httpadapter.New(service, httpadapter.Config{
+		Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir,
+		SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy,
+		MaxRequests: cfg.MaxRequests, MaxUploads: cfg.MaxUploads,
+	})
 	server := &http.Server{Addr: cfg.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	return &Application{Repository: repo, Backup: backup, Objects: objects, Service: service, Handler: handler, Server: server}, nil
 }
@@ -125,12 +136,18 @@ func Run(args []string) error {
 		return err
 	}
 	defer app.Repository.Close()
+	listener, err := net.Listen("tcp", cfg.Address)
+	if err != nil {
+		return err
+	}
+	listener = limitConnections(listener, cfg.MaxConnections)
+	defer listener.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	stopBackups := app.startBackups(ctx)
 	defer stopBackups()
 	result := make(chan error, 1)
-	go func() { result <- app.Server.ListenAndServe() }()
+	go func() { result <- app.Server.Serve(listener) }()
 	log.Printf("Listening on http://%s", cfg.Address)
 	select {
 	case err := <-result:
@@ -222,6 +239,24 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 		return other
 	}
 	cfg := Config{DatabasePath: fallback(*databasePath, fallback(get("DATABASE_PATH"), "data/website.db")), Address: fallback(*address, fallback(get("HTTP_ADDR"), "127.0.0.1:8080")), FrontendDir: fallback(*frontend, fallback(get("FRONTEND_DIR"), "frontend/dist")), AdminPassword: get("ADMIN_PASSWORD")}
+	for _, limit := range []struct {
+		name     string
+		value    *int
+		fallback int
+	}{
+		{"HTTP_MAX_REQUESTS", &cfg.MaxRequests, httpadapter.DefaultMaxRequests},
+		{"HTTP_MAX_UPLOADS", &cfg.MaxUploads, httpadapter.DefaultMaxUploads},
+		{"HTTP_MAX_CONNECTIONS", &cfg.MaxConnections, defaultMaxConnections},
+	} {
+		*limit.value = limit.fallback
+		if raw := get(limit.name); raw != "" {
+			value, err := strconv.Atoi(raw)
+			if err != nil || value <= 0 {
+				return Config{}, fmt.Errorf("%s must be a positive integer", limit.name)
+			}
+			*limit.value = value
+		}
+	}
 	cfg.RestoreTimeout = 5 * time.Minute
 	if raw := get("RESTORE_TIMEOUT"); raw != "" {
 		duration, err := time.ParseDuration(raw)

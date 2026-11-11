@@ -11,11 +11,11 @@ const router = createRouter({
   history: createWebHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
-    { path: "/", alias: "/gallery", component: Gallery },
+    { path: "/gallery", component: Gallery },
     { path: "/bw-photos", component: Gallery },
     { path: "/color-photos", component: Gallery },
     { path: "/image/:uuid", component: Photo },
-    { path: "/blog", component: Blog },
+    { path: "/", alias: "/blog", component: Blog },
     { path: "/blog/:slug", component: Blog },
     { path: "/admin", component: () => import("./Admin.vue") },
     { path: "/:pathMatch(.*)*", component: NotFound },
