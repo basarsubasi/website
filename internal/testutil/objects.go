@@ -2,12 +2,14 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -166,9 +168,39 @@ func S3Server(objects *Objects) *httptest.Server {
 				return
 			}
 			w.Header().Set("ETag", etag)
-			w.Header().Set("Content-Type", "application/json")
+			objects.mu.Lock()
+			contentType := objects.items[key].contentType
+			objects.mu.Unlock()
+			w.Header().Set("Content-Type", contentType)
 			w.Write(raw)
 		case "PUT":
+			if source := r.Header.Get("X-Amz-Copy-Source"); source != "" {
+				decoded, err := url.PathUnescape(source)
+				if err != nil {
+					fail(err)
+					return
+				}
+				_, sourceKey, _ := strings.Cut(decoded, "/")
+				raw, _, err := objects.Read(r.Context(), sourceKey)
+				if err != nil {
+					fail(err)
+					return
+				}
+				metadata := map[string]string{}
+				for name := range r.Header {
+					if suffix, ok := strings.CutPrefix(strings.ToLower(name), "x-amz-meta-"); ok {
+						metadata[suffix] = r.Header.Get(name)
+					}
+				}
+				_, err = objects.Put(r.Context(), key, bytes.NewReader(raw), int64(len(raw)), r.Header.Get("Content-Type"), metadata)
+				if err != nil {
+					fail(err)
+					return
+				}
+				w.Header().Set("Content-Type", "application/xml")
+				fmt.Fprint(w, `<CopyObjectResult><ETag>"copied"</ETag><LastModified>2026-01-01T00:00:00Z</LastModified></CopyObjectResult>`)
+				return
+			}
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				fail(err)

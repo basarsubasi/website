@@ -1,4 +1,4 @@
-.PHONY: build frontend test dev seed unseed dev-docker
+.PHONY: build frontend test dev seed unseed dev-docker test-ui test-container
 
 build: frontend
 	mkdir -p bin
@@ -22,3 +22,10 @@ unseed:
 
 dev-docker:
 	docker compose -f compose.dev.yaml up --build
+
+# One-time browser setup: cd frontend && npx playwright install --with-deps chromium
+test-ui:
+	cd frontend && npm ci && npm run test:ui
+
+test-container:
+	python3 scripts/smoke-container.py

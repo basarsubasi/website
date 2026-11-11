@@ -101,7 +101,17 @@ docker run --rm --env-file .env \
   -v website-data:/data -p 8080:8080 website
 ~~~
 
-The multi-stage image builds Vue and a CGO-disabled Go binary, then runs on debian:bookworm-slim with CA certificates. The entrypoint starts as root to make the mounted /data directory writable, then uses gosu to run Go as UID/GID 10001. Go serves the UI and API. Preserve the named data volume; existing database files in bind mounts must be writable by UID/GID 10001; startup changes the directory ownership, not existing file ownership. Use HTTPS at the reverse proxy; local HTTP testing needs COOKIE_SECURE=false.
+The multi-stage image builds Vue and a CGO-disabled Go binary, then runs on
+`gcr.io/distroless/static-debian13:nonroot` with CA certificates. Go is the direct
+entrypoint and runs as UID/GID 10001 from startup; the production image contains
+no shell, package manager, or root startup script. Keeping the existing UID
+preserves access to databases created by earlier images. Go serves the UI and API.
+
+`/data` is owned by 10001 in the image, so fresh Docker named volumes inherit
+writable permissions. Bind mounts and existing database files must already be
+writable by UID/GID 10001. Fly's init assigns the mount directory to the configured
+image user; see the [Fly init implementation](https://github.com/superfly/init-snapshot/blob/master/src/bin/init/main.rs).
+Use HTTPS at the reverse proxy; local HTTP testing needs COOKIE_SECURE=false.
 
 Use one authoritative SQLite database per R2 bucket. Do not run independently restored writable databases against the same backup catalog. SQLite and the backup worker lock require a local filesystem; the file lock serializes the server and fixture commands sharing that database.
 
@@ -127,7 +137,7 @@ fly checks list --app YOUR_APP
 The primary region is `ams` (Amsterdam), configured in `fly.toml`.
 The deployment script takes the app name and passes `--ha=false`
 to avoid creating a spare Machine with an independent writable SQLite database.
-The mount configuration provisions a 1 GB `website_data` volume on first deploy
+The mount configuration provisions a 2 GB `website_data` volume on first deploy
 and retains daily snapshots for 14 days. For an existing Fly app, verify it has
 exactly one Machine and the correct data volume before deploying; `--ha=false`
 does not remove existing Machines. Do not scale this app horizontally. Rolling
@@ -187,3 +197,46 @@ npm run build --prefix frontend
 ~~~
 
 Tests use temporary SQLite files, an in-memory object store, and a local S3 fixture. They do not modify real R2 content. Coverage includes public reads during R2 outages, CRUD, draft visibility, transactional imports, restart recovery, ordered backup retries, concurrent workers, authentication limits, and seed cleanup.
+
+### Browser tests
+
+Requires Go, Node, and Chromium installed through Playwright:
+
+~~~sh
+cd frontend
+npm ci
+npx playwright install --with-deps chromium
+cd ..
+make test-ui
+~~~
+
+Playwright builds the production frontend and starts the real Go application on
+`127.0.0.1:18080`. The test server uses a temporary SQLite database and a local
+in-memory S3 service, overrides cloud settings with dummy values, and disables
+.env loading. It refuses to reuse an existing server. Tests cover failed login,
+session reload/logout, photo upload/display/edit/filter/delete, draft privacy,
+publishing and editing posts, deep-link reloads, and invalid image uploads.
+No real R2 bucket is accessed. Tests run with one Chromium worker and no automatic
+retries. Failure screenshots and traces are saved under `frontend/test-results/`.
+Use `npm run test:ui -- --grep "photo"` from `frontend/` to select a test.
+
+### Production container smoke test
+
+Requires Docker and Python 3:
+
+~~~sh
+make test-container
+~~~
+
+The script builds the production image and a separate S3 fixture image, then
+creates uniquely named containers, a private Docker network, and two disposable
+volumes. It checks the non-root user, absent shell, read-only root filesystem,
+frontend serving, health, secure cookie flags, post creation, image upload, actual
+background backup delivery, restore into a fresh database, restart while R2 is
+offline, and graceful shutdown. Secure cookies are asserted at the HTTP level;
+the smoke client forwards the cookie explicitly because its local URL is HTTP.
+
+All test containers, volumes, and image tags are removed on success or failure.
+The production image does not contain the fixture binary. Both test suites are
+local commands; no CI workflow is configured. Live Fly/R2 credentials, TLS, and
+edge routing still require a staging deployment check.

@@ -1,53 +1,53 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-!coverage.go
-*.coverprofile
-profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
-go.work.sum
-
-# env file
+# Local configuration and secrets (keep example files).
 .env
+.env.*
+*.env
+!.env.example
+!*.env.example
 
-# Editor/IDE
-# .idea/
-# .vscode/
-
-# Website build output and local data
-/frontend/node_modules/
-/frontend/dist/
+# Go builds, Air hot-reload output, and profiling.
 /bin/
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-.DS_Store
-
-# Development fixtures and Air builds
 /.tmp/
-/frontend/public/seed/
+/website
+/seed
+/unseed
+*.test
+*.prof
+/coverage/
+/coverage.out
+/coverage.html
 
-# SQLite content volume and backup worker lock
+# Frontend dependencies, builds, and caches.
+node_modules/
+/frontend/dist/
+.vite/
+*.tsbuildinfo
+
+# SQLite databases, journals, and backup worker locks.
 /data/
-*.db.backup.lock
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.backup.lock
+
+# Local logs.
+*.log
+
+# Editor and operating-system files.
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Browser test artifacts.
+/frontend/test-results/
+/frontend/playwright-report/
+__pycache__/
