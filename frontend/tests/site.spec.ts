@@ -219,3 +219,31 @@ test("inline editor validates empty content and supports safe paste and undo", a
   await expect(body.locator("p")).toHaveText(["Birinci paragraf.", "İkinci paragraf."]);
   await page.getByRole("button", { name: "Vazgeç", exact: true }).click();
 });
+
+test("blog images retain width and captions after saving", async ({ page }) => {
+  await login(page);
+  await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
+  await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
+  await page.getByLabel("Başlık", { exact: true }).fill("Image journal");
+  await page.getByLabel("İçerik", { exact: true }).fill("Before the image.");
+  await page.locator('.post-editor input[type="file"]').setInputFiles({ name: "blog.png", mimeType: "image/png", buffer: png });
+  const figure = page.locator(".tiptap figure");
+  await expect(figure.locator("img")).toHaveAttribute("src", /blog\/images\//);
+  await figure.locator("img").click();
+  await page.getByRole("button", { name: "%50", exact: true }).click();
+  await expect(figure).toHaveAttribute("style", /width: 50%/);
+  await figure.locator("figcaption").click();
+  await page.keyboard.type("A quiet afternoon.");
+  await page.getByRole("button", { name: "Yazı ayarları" }).click();
+  await page.getByLabel("Durum").selectOption("1");
+  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+  await page.getByRole("listitem").filter({ hasText: "Image journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
+  await expect(figure).toHaveAttribute("style", /width: 50%/);
+  await expect(figure.locator("figcaption")).toHaveText("A quiet afternoon.");
+  await page.goto("/blog/image-journal");
+  await page.reload();
+  await expect(page.locator("figure")).toHaveAttribute("style", /width: 50%/);
+  await expect(page.locator("figcaption")).toHaveText("A quiet afternoon.");
+  await expect(page.locator("figcaption")).toHaveCSS("font-style", "italic");
+});
