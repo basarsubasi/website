@@ -2,8 +2,9 @@ package usecase
 
 import (
 	"context"
-	"github.com/basarsubasi/website/internal/domain"
 	"io"
+
+	"github.com/basarsubasi/website/internal/domain"
 )
 
 type Repository interface {
@@ -20,6 +21,7 @@ type Repository interface {
 	UpdatePost(context.Context, string, domain.PostInput) (domain.Post, error)
 	DeletePost(context.Context, string) error
 }
+
 type PhotoStorage interface {
 	Put(context.Context, string, io.Reader, int64, string, map[string]string) (string, error)
 	UpdateMetadata(context.Context, string, string, map[string]string) error

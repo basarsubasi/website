@@ -34,7 +34,7 @@ func TestSQLiteBackupRestoreAndDeletion(t *testing.T) {
 	backup := r2.NewBackup(objects)
 	path := filepath.Join(t.TempDir(), "site.db")
 	repo := open(t, path, backup)
-	photo := domain.Image{Uuid: uuid.NewV4().String(), ObjectKey: "photos/test.png", ImageUrl: "https://photos.example.com/test.png", Color: "bw", FileType: "image/png"}
+	photo := domain.Image{UUID: uuid.NewV4().String(), ObjectKey: "photos/test.png", ImageURL: "https://photos.example.com/test.png", Color: "bw", FileType: "image/png"}
 	objects.Put(ctx, photo.ObjectKey, strings.NewReader("photo"), 5, photo.FileType, nil)
 	photo, err := repo.CreateImage(ctx, photo)
 	if err != nil {
@@ -54,13 +54,13 @@ func TestSQLiteBackupRestoreAndDeletion(t *testing.T) {
 	if got, err := restored.GetPost(ctx, post.Slug); err != nil || got != post {
 		t.Fatalf("post restore: %+v %v", got, err)
 	}
-	if got, err := restored.GetImage(ctx, photo.Uuid); err != nil || got != photo {
+	if got, err := restored.GetImage(ctx, photo.UUID); err != nil || got != photo {
 		t.Fatalf("image restore: %+v %v", got, err)
 	}
 	if err = repo.DeletePost(ctx, post.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err = repo.DeleteImage(ctx, photo.Uuid); err != nil {
+	if err = repo.DeleteImage(ctx, photo.UUID); err != nil {
 		t.Fatal(err)
 	}
 	// Restart before synchronization must not resurrect the remote copies.

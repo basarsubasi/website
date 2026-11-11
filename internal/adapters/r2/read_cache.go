@@ -3,12 +3,13 @@ package r2
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/basarsubasi/website/internal/domain"
 )
+
+const refreshInterval = 5 * time.Second
 
 const maxConcurrentReads = 8
 const maxCachedReads = 128
@@ -123,29 +124,6 @@ func (c *readCache) putLocked(key string, result *readResult) {
 	result.expires = time.Now().Add(refreshInterval)
 	c.entries[key] = result
 	c.bytes += result.size
-}
-
-func parseCatalog(raw []byte, etag string) (catalog, error) {
-	var state catalog
-	if err := json.Unmarshal(raw, &state); err != nil {
-		return state, fmt.Errorf("invalid catalog JSON: %w", err)
-	}
-	if state.Version != catalogVersion || state.Revision == "" || state.Images == nil || state.Posts == nil || etag == "" {
-		return state, fmt.Errorf("invalid catalog version or structure")
-	}
-	slugs := map[string]bool{}
-	for id, photo := range state.Images {
-		if id != photo.Uuid || photo.ObjectKey == "" || (photo.Color != "bw" && photo.Color != "color") {
-			return state, fmt.Errorf("invalid image entry in catalog")
-		}
-	}
-	for id, post := range state.Posts {
-		if id != post.Metadata.ID || post.ObjectKey == "" || post.Metadata.Slug == "" || slugs[post.Metadata.Slug] {
-			return state, fmt.Errorf("invalid post entry in catalog")
-		}
-		slugs[post.Metadata.Slug] = true
-	}
-	return state, nil
 }
 
 func (r *Repository) snapshot(ctx context.Context) (catalog, error) {

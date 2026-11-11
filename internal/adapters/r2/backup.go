@@ -59,7 +59,7 @@ func (b *Backup) SaveImage(ctx context.Context, p domain.Image) error {
 	if err != nil {
 		return err
 	}
-	metadata, err := usecase.PhotoMetadata(domain.PhotoInput{Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, Color: p.Color}, p.Uuid)
+	metadata, err := usecase.PhotoMetadata(domain.PhotoInput{Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, Color: p.Color}, p.UUID)
 	if err != nil {
 		return err
 	}
@@ -69,10 +69,10 @@ func (b *Backup) SaveImage(ctx context.Context, p domain.Image) error {
 	repo.writeMu.Lock()
 	defer repo.writeMu.Unlock()
 	return repo.mutate(ctx, func(next *catalog) error {
-		if old, ok := next.Images[p.Uuid]; ok && old.ObjectKey != p.ObjectKey {
+		if old, ok := next.Images[p.UUID]; ok && old.ObjectKey != p.ObjectKey {
 			next.Garbage = append(next.Garbage, old.ObjectKey)
 		}
-		next.Images[p.Uuid] = p
+		next.Images[p.UUID] = p
 		return nil
 	})
 }
@@ -81,7 +81,7 @@ func (b *Backup) RemoveImage(ctx context.Context, p domain.Image) error {
 	if err != nil {
 		return err
 	}
-	err = repo.DeleteImage(ctx, p.Uuid)
+	err = repo.DeleteImage(ctx, p.UUID)
 	if errors.Is(err, domain.ErrNotFound) {
 		return b.objects.Delete(ctx, p.ObjectKey)
 	}
@@ -92,7 +92,10 @@ func (b *Backup) SavePost(ctx context.Context, p domain.Post) error {
 	if err != nil {
 		return err
 	}
-	_, err = repo.savePost(ctx, p.ID, domain.PostInput{Slug: p.Slug, Title: p.Title, Excerpt: p.Excerpt, Body: p.Body, Published: p.Published}, false, &p)
+	_, err = repo.savePost(ctx, p.ID, p.Slug, func(_ postEntry, _ bool) (domain.Post, error) {
+		// Backup replay upserts the original record, including its timestamps.
+		return p, nil
+	})
 	return err
 }
 func (b *Backup) RemovePost(ctx context.Context, p domain.Post) error {

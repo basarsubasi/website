@@ -35,6 +35,7 @@ Copy .env.example to .env and fill in the admin password and R2 settings. Config
 | FRONTEND_DIR | Default frontend/dist; override with -frontend |
 | COOKIE_SECURE | Default false; set true behind HTTPS |
 | TRUSTED_PROXY_CIDRS | Optional comma-separated trusted reverse proxy CIDRs |
+| TRUST_FLY_PROXY | Default false; fly.toml enables Fly-Client-IP handling for private-network peers |
 | ENV_FILE | Default .env; override with -env; an empty value disables file loading |
 
 Missing required settings or an unusable SQLite file stops startup. A new database requires R2 to initialize/import its backup. An already initialized database can start, serve reads, and save post/metadata edits while R2 is unavailable. New image uploads still require R2.
@@ -100,9 +101,50 @@ docker run --rm --env-file .env \
   -v website-data:/data -p 8080:8080 website
 ~~~
 
-The multi-stage image builds Vue and a CGO-disabled Go binary, then runs on debian:bookworm-slim with CA certificates and UID/GID 10001. Go serves the UI and API. Preserve the named data volume; bind mounts must be writable by UID/GID 10001. Use HTTPS at the reverse proxy; local HTTP testing needs COOKIE_SECURE=false.
+The multi-stage image builds Vue and a CGO-disabled Go binary, then runs on debian:bookworm-slim with CA certificates. The entrypoint starts as root to make the mounted /data directory writable, then uses gosu to run Go as UID/GID 10001. Go serves the UI and API. Preserve the named data volume; existing database files in bind mounts must be writable by UID/GID 10001; startup changes the directory ownership, not existing file ownership. Use HTTPS at the reverse proxy; local HTTP testing needs COOKIE_SECURE=false.
 
 Use one authoritative SQLite database per R2 bucket. Do not run independently restored writable databases against the same backup catalog. SQLite and the backup worker lock require a local filesystem; the file lock serializes the server and fixture commands sharing that database.
+
+### Fly.io
+
+`fly.toml` configures HTTPS on port 8080, secure cookies, a persistent `/data`
+volume, SQLite health checks, and graceful shutdown. The Machine stays running
+so the R2 backup worker continues even without incoming requests. First startup
+gets a 100-second health-check grace period for the initial R2 import.
+
+Create the app, choose its region, and set the required secrets before deploying:
+
+~~~sh
+fly apps create YOUR_APP
+# Set ADMIN_PASSWORD, R2_ACCOUNT_ID (or R2_ENDPOINT), R2_BUCKET,
+# R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_PUBLIC_URL using Fly secrets.
+# Import a file containing ONLY those KEY=VALUE settings (keep it outside Git):
+fly secrets import --app YOUR_APP < /secure/path/fly-secrets.env
+./scripts/deploy-fly.sh YOUR_APP
+fly checks list --app YOUR_APP
+~~~
+
+The primary region is `ams` (Amsterdam), configured in `fly.toml`.
+The deployment script takes the app name and passes `--ha=false`
+to avoid creating a spare Machine with an independent writable SQLite database.
+The mount configuration provisions a 1 GB `website_data` volume on first deploy
+and retains daily snapshots for 14 days. For an existing Fly app, verify it has
+exactly one Machine and the correct data volume before deploying; `--ha=false`
+does not remove existing Machines. Do not scale this app horizontally. Rolling
+updates of the single Machine cause a brief interruption. Do not add a release
+command for database initialization: Fly release Machines do not mount the volume.
+
+`TRUST_FLY_PROXY=true` uses the validated `Fly-Client-IP` header for login limits
+only when the transport peer has a private IP. It takes precedence over
+`TRUSTED_PROXY_CIDRS`. Enable it only with Fly Proxy as the public entry point
+and trusted workloads on the private network: a private address alone does not
+authenticate a proxy. Missing or malformed headers fall back to the connection
+IP. A CDN in front of Fly will be counted as the client; this configuration
+assumes browsers connect directly to Fly. Same-origin protection remains enabled.
+
+See [Fly app configuration](https://fly.io/docs/reference/configuration/),
+[deployment options](https://fly.io/docs/flyctl/deploy/), and
+[proxy headers](https://fly.io/docs/networking/request-headers/).
 
 ## Persistence, backup, and restore
 

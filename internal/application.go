@@ -33,6 +33,7 @@ type Config struct {
 	AdminPassword  string
 	SecureCookies  bool
 	TrustedProxies []netip.Prefix
+	TrustFlyProxy  bool
 	Storage        *r2.Config
 }
 
@@ -84,7 +85,7 @@ func New(cfg Config) (*Application, error) {
 		return nil, fmt.Errorf("initialize database from R2: %w", err)
 	}
 	service := usecase.New(repo, objects)
-	handler := httpadapter.New(service, httpadapter.Config{Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir, SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies})
+	handler := httpadapter.New(service, httpadapter.Config{Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir, SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy})
 	server := &http.Server{Addr: cfg.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	return &Application{Repository: repo, Backup: backup, Objects: objects, Service: service, Handler: handler, Server: server}, nil
 }
@@ -219,6 +220,13 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 			return Config{}, fmt.Errorf("COOKIE_SECURE must be a boolean")
 		}
 		cfg.SecureCookies = secure
+	}
+	if raw := get("TRUST_FLY_PROXY"); raw != "" {
+		enabled, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("TRUST_FLY_PROXY must be a boolean")
+		}
+		cfg.TrustFlyProxy = enabled
 	}
 	if raw := strings.TrimSpace(get("TRUSTED_PROXY_CIDRS")); raw != "" {
 		for _, value := range strings.Split(raw, ",") {

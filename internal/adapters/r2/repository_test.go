@@ -71,19 +71,19 @@ func TestPendingCleanupRetriesAfterRestart(t *testing.T) {
 	repo := open(t, objects)
 	key := "photos/" + uuid.NewV4().String() + ".png"
 	objects.Put(ctx, key, strings.NewReader("photo"), 5, "image/png", nil)
-	image := domain.Image{Uuid: uuid.NewV4().String(), ObjectKey: key, Color: "bw", ImageUrl: "https://example.com/" + key}
+	image := domain.Image{UUID: uuid.NewV4().String(), ObjectKey: key, Color: "bw", ImageURL: "https://example.com/" + key}
 	if _, err := repo.CreateImage(ctx, image); err != nil {
 		t.Fatal(err)
 	}
 	objects.FailNext("delete", errors.New("R2 unavailable"))
-	if err := repo.DeleteImage(ctx, image.Uuid); err != nil {
+	if err := repo.DeleteImage(ctx, image.UUID); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := objects.Read(ctx, key); err != nil {
 		t.Fatal("failed delete did not preserve object")
 	}
 	restarted := open(t, objects)
-	if _, err := restarted.GetImage(ctx, image.Uuid); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := restarted.GetImage(ctx, image.UUID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatal("catalog delete not persisted")
 	}
 	if _, _, err := objects.Read(ctx, key); !errors.Is(err, domain.ErrNotFound) {

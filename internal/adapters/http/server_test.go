@@ -154,7 +154,7 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 	c.upload(input, pngBytes(t), 401)
 	c.login()
 	photo := item[domain.Image](t, c.upload(input, pngBytes(t), 201))
-	assertV4(t, photo.Uuid)
+	assertV4(t, photo.UUID)
 	if photo.FileType != "image/png" {
 		t.Fatal("trusted filename instead of file format")
 	}
@@ -171,16 +171,16 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 		t.Fatal("filter/pagination failed")
 	}
 	input.Name = "Updated"
-	c.request("PUT", "/api/admin/images/"+photo.Uuid, input, 200)
+	c.request("PUT", "/api/admin/images/"+photo.UUID, input, 200)
 	c.restart()
-	got := item[domain.Image](t, c.request("GET", "/api/images/"+photo.Uuid, nil, 200))
+	got := item[domain.Image](t, c.request("GET", "/api/images/"+photo.UUID, nil, 200))
 	if got.Name != "Updated" {
 		t.Fatal("data lost on reboot")
 	}
-	c.request("DELETE", "/api/admin/images/"+photo.Uuid, nil, 401)
+	c.request("DELETE", "/api/admin/images/"+photo.UUID, nil, 401)
 	c.login()
-	c.request("DELETE", "/api/admin/images/"+photo.Uuid, nil, 204)
-	c.request("GET", "/api/images/"+photo.Uuid, nil, 404)
+	c.request("DELETE", "/api/admin/images/"+photo.UUID, nil, 204)
+	c.request("GET", "/api/images/"+photo.UUID, nil, 404)
 	if err := c.repo.SyncBackups(context.Background(), c.backup); err != nil {
 		t.Fatal(err)
 	}
@@ -248,9 +248,9 @@ func TestPublicReadsUseSQLiteDuringR2Outage(t *testing.T) {
 		c.request("GET", "/api/posts/missing", nil, 404)
 		c.request("GET", "/api/posts", nil, 200)
 		c.request("GET", "/api/images", nil, 200)
-		c.request("GET", "/api/images/"+photo.Uuid, nil, 200)
+		c.request("GET", "/api/images/"+photo.UUID, nil, 200)
 	}
-	c.request("PUT", "/api/admin/images/"+photo.Uuid, domain.PhotoInput{Name: "Offline edit", Color: "color"}, 200)
+	c.request("PUT", "/api/admin/images/"+photo.UUID, domain.PhotoInput{Name: "Offline edit", Color: "color"}, 200)
 	if _, _, err := c.objects.Read(context.Background(), r2.CatalogKey); !errors.Is(err, offline) {
 		t.Fatal("public read unexpectedly touched R2")
 	}

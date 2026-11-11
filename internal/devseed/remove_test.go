@@ -31,7 +31,7 @@ func TestRemoveOnlyFixturesAndRepeat(t *testing.T) {
 	if _, err := objects.Put(ctx, key, strings.NewReader("photo"), 5, "image/png", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.CreateImage(ctx, domain.Image{Uuid: photoID, ObjectKey: key, Name: "Sample landscape 01", Color: "bw"}); err != nil {
+	if _, err := repo.CreateImage(ctx, domain.Image{UUID: photoID, ObjectKey: key, Name: "Sample landscape 01", Color: "bw"}); err != nil {
 		t.Fatal(err)
 	}
 	postID := uuid.NewV4().String()
@@ -49,7 +49,7 @@ func TestRemoveOnlyFixturesAndRepeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	photos, err := restarted.ListImages(ctx, domain.Pagination{Page: 1, Limit: 100}, "")
-	if err != nil || photos.Total != 1 || photos.Data[0].Uuid != photoID {
+	if err != nil || photos.Total != 1 || photos.Data[0].UUID != photoID {
 		t.Fatalf("non-fixture photo lost: %+v %v", photos, err)
 	}
 	posts, err := restarted.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 100}, true)

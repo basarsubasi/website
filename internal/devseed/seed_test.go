@@ -30,7 +30,7 @@ func TestSeedIsRepeatableAndPersistsInR2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.UpdateImage(ctx, first.Uuid, domain.PhotoInput{Name: "Edited", Color: first.Color}); err != nil {
+	if _, err := repo.UpdateImage(ctx, first.UUID, domain.PhotoInput{Name: "Edited", Color: first.Color}); err != nil {
 		t.Fatal(err)
 	}
 	count, err = Seed(ctx, repo, objects)
@@ -58,7 +58,7 @@ func TestSeedIsRepeatableAndPersistsInR2(t *testing.T) {
 			t.Fatal("seed color coverage missing")
 		}
 		for _, photo := range page.Data {
-			value, err := uuid.Parse(photo.Uuid)
+			value, err := uuid.Parse(photo.UUID)
 			if err != nil || value[6]>>4 != 4 {
 				t.Fatal("invalid seed UUID")
 			}

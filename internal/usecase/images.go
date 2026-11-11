@@ -36,12 +36,14 @@ func PhotoMetadata(p domain.PhotoInput, id string) (map[string]string, error) {
 	}
 	return map[string]string{"photo": encoded}, nil
 }
+
 func validPage(p domain.Pagination) error {
 	if p.Page < 1 || p.Page > 1000000 || p.Limit < 1 || p.Limit > 100 {
 		return domain.Invalid("Invalid pagination")
 	}
 	return nil
 }
+
 func (s *Service) ListImages(ctx context.Context, p domain.Pagination, color string) (domain.Page[domain.Image], error) {
 	if err := validPage(p); err != nil {
 		return domain.Page[domain.Image]{}, err
@@ -51,9 +53,11 @@ func (s *Service) ListImages(ctx context.Context, p domain.Pagination, color str
 	}
 	return s.repo.ListImages(ctx, p, color)
 }
+
 func (s *Service) GetImage(ctx context.Context, id string) (domain.Image, error) {
 	return s.repo.GetImage(ctx, id)
 }
+
 func (s *Service) UploadImage(ctx context.Context, p domain.PhotoInput, file io.ReadSeeker, size int64) (domain.Image, error) {
 	if s.photos == nil {
 		return domain.Image{}, domain.ErrUnavailable
@@ -88,7 +92,7 @@ func (s *Service) UploadImage(ctx context.Context, p domain.PhotoInput, file io.
 	if err != nil {
 		return domain.Image{}, &domain.StorageError{Operation: "upload photo", Err: err}
 	}
-	photo, err := s.repo.CreateImage(ctx, domain.Image{Uuid: id, ImageUrl: imageURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: contentType, Color: p.Color})
+	photo, err := s.repo.CreateImage(ctx, domain.Image{UUID: id, ImageURL: imageURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: contentType, Color: p.Color})
 	if err != nil && !errors.Is(err, domain.ErrUncertain) {
 		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
@@ -98,12 +102,14 @@ func (s *Service) UploadImage(ctx context.Context, p domain.PhotoInput, file io.
 	}
 	return photo, err
 }
+
 func (s *Service) UpdateImage(ctx context.Context, id string, p domain.PhotoInput) (domain.Image, error) {
 	if _, err := PhotoMetadata(p, id); err != nil {
 		return domain.Image{}, err
 	}
 	return s.repo.UpdateImage(ctx, id, p)
 }
+
 func (s *Service) DeleteImage(ctx context.Context, id string) error {
 	// The repository deletes local metadata and durably queues remote cleanup.
 	return s.repo.DeleteImage(ctx, id)

@@ -8,4 +8,5 @@ type Service struct {
 }
 
 func New(repo Repository, photos PhotoStorage) *Service { return &Service{repo: repo, photos: photos} }
-func (s *Service) Health(ctx context.Context) error     { return s.repo.Ping(ctx) }
+
+func (s *Service) Health(ctx context.Context) error { return s.repo.Ping(ctx) }

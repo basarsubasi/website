@@ -2,10 +2,11 @@ package usecase
 
 import (
 	"context"
-	"github.com/basarsubasi/website/internal/domain"
 	"regexp"
 	"strings"
 	"uuid"
+
+	"github.com/basarsubasi/website/internal/domain"
 )
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -16,9 +17,11 @@ func (s *Service) ListPosts(ctx context.Context, p domain.Pagination, includeDra
 	}
 	return s.repo.ListPosts(ctx, p, includeDrafts)
 }
+
 func (s *Service) GetPost(ctx context.Context, slug string) (domain.Post, error) {
 	return s.repo.GetPost(ctx, slug)
 }
+
 func (s *Service) SavePost(ctx context.Context, id string, p domain.PostInput) (domain.Post, error) {
 	p.Slug = strings.TrimSpace(p.Slug)
 	p.Title = strings.TrimSpace(p.Title)
@@ -30,4 +33,5 @@ func (s *Service) SavePost(ctx context.Context, id string, p domain.PostInput) (
 	}
 	return s.repo.CreatePost(ctx, domain.Post{ID: uuid.NewV4().String(), Slug: p.Slug, Title: p.Title, Excerpt: p.Excerpt, Body: p.Body, Published: p.Published})
 }
+
 func (s *Service) DeletePost(ctx context.Context, id string) error { return s.repo.DeletePost(ctx, id) }

@@ -60,7 +60,7 @@ func Seed(ctx context.Context, repo usecase.Repository, objects usecase.PhotoSto
 		if err != nil {
 			return count, err
 		}
-		_, err = repo.CreateImage(ctx, domain.Image{Uuid: id, ImageUrl: public, ObjectKey: key, Name: input.Name, Country: input.Country, City: input.City, YearTaken: input.YearTaken, FileType: "image/png", Color: input.Color})
+		_, err = repo.CreateImage(ctx, domain.Image{UUID: id, ImageURL: public, ObjectKey: key, Name: input.Name, Country: input.Country, City: input.City, YearTaken: input.YearTaken, FileType: "image/png", Color: input.Color})
 		if err != nil {
 			if !errors.Is(err, domain.ErrUncertain) {
 				_ = objects.Delete(ctx, key)

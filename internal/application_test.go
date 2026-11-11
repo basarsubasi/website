@@ -121,3 +121,25 @@ func TestTrustedProxyConfiguration(t *testing.T) {
 		t.Fatal("invalid trusted proxy configuration accepted")
 	}
 }
+
+func TestFlyProxyConfiguration(t *testing.T) {
+	for _, value := range []string{"", "false", "true", "invalid"} {
+		t.Run(value, func(t *testing.T) {
+			env := validEnv()
+			env["TRUST_FLY_PROXY"] = value
+			cfg, err := loadConfig([]string{"-env", ""}, lookup(env))
+			if value == "invalid" {
+				if err == nil {
+					t.Fatal("invalid boolean accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.TrustFlyProxy != (value == "true") {
+				t.Fatalf("unexpected Fly proxy setting: %v", cfg.TrustFlyProxy)
+			}
+		})
+	}
+}

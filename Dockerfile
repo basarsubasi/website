@@ -18,7 +18,7 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/website ./cmd/website
 
 FROM debian:bookworm-slim AS production
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 website \
     && useradd --system --uid 10001 --gid website --no-create-home \
@@ -29,13 +29,13 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=backend /out/website /usr/local/bin/website
 COPY --from=frontend /src/frontend/dist/ ./frontend/
+COPY --chmod=755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 
 ENV HTTP_ADDR=:8080 \
     DATABASE_PATH=/data/website.db \
     FRONTEND_DIR=/app/frontend
 
-USER 10001:10001
 EXPOSE 8080
 VOLUME ["/data"]
-ENTRYPOINT ["/usr/local/bin/website"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]
 CMD ["-env", ""]
