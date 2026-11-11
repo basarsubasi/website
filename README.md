@@ -52,6 +52,21 @@ Concurrency limits are per process and must be positive integers. Excess request
 
 Requires Go 1.27.4, Node 24 or newer, and Linux or macOS.
 
+Go dependencies are checked into `vendor/`. Builds and tests use these local
+copies; Docker builds also copy them instead of downloading application modules.
+The development image still downloads the Air tool during its build.
+
+After changing Go dependencies:
+
+~~~sh
+make vendor       # Regenerate vendor/ from the current module dependencies.
+make tidy         # Tidy go.mod/go.sum, then regenerate vendor/.
+make vendor-check # Check vendor/ against a fresh copy without modifying it.
+~~~
+
+Commit `vendor/`, `go.mod`, and `go.sum` together. Dependency maintenance commands
+may download modules; normal application builds do not need module downloads.
+
 ~~~sh
 cp .env.example .env
 # Fill in .env.
@@ -251,7 +266,8 @@ Requires Docker and Python 3:
 make test-container
 ~~~
 
-The script builds the production image and a separate S3 fixture image, then
+The script builds the production image from `Dockerfile` and a separate S3
+fixture image from `internal/testutil/Dockerfile`, then
 creates uniquely named containers, a private Docker network, and two disposable
 volumes. It checks the non-root user, absent shell, read-only root filesystem,
 frontend serving, health, secure cookie flags, post creation, image upload, actual

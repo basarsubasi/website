@@ -3,7 +3,7 @@ tmp_dir = ".tmp/air"
 env_files = []
 
 [build]
-cmd = "CGO_ENABLED=0 go build -o ./.tmp/air/website ./cmd/website"
+cmd = "CGO_ENABLED=0 go build -mod=vendor -o ./.tmp/air/website ./cmd/website"
 entrypoint = ["./.tmp/air/website"]
 include_dir = ["cmd", "internal"]
 include_file = ["go.mod", "go.sum"]

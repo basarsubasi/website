@@ -51,3 +51,6 @@ Desktop.ini
 /frontend/test-results/
 /frontend/playwright-report/
 __pycache__/
+
+# Keep the complete generated dependency tree, including upstream fixture files.
+!/vendor/**

@@ -20,3 +20,6 @@ frontend/public/seed
 frontend/test-results
 frontend/playwright-report
 **/__pycache__
+
+# Vendor must match the checked-in dependency tree exactly.
+!vendor/**

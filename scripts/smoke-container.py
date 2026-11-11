@@ -69,7 +69,7 @@ def main():
     try:
         print("Building production and S3 fixture images…", flush=True)
         docker("build", "--target", "production", "-t", image, ".")
-        docker("build", "--target", "test-fixture", "-t", fixture_image, ".")
+        docker("build", "-f", "internal/testutil/Dockerfile", "-t", fixture_image, ".")
         config = json.loads(docker("image", "inspect", image).stdout)[0]["Config"]
         assert config["User"] == "10001:10001", config["User"]
         assert config["Entrypoint"] == ["/usr/local/bin/website"]
@@ -89,6 +89,8 @@ def main():
                    "--read-only", "--tmpfs", "/tmp", "--cap-drop=ALL",
                    "--security-opt", "no-new-privileges", "-p", "127.0.0.1::8080",
                    "-v", f"{volume}:/data",
+                   "-e", "HTTP_ADDR=:8080", "-e", "DATABASE_PATH=/data/website.db",
+                   "-e", "FRONTEND_DIR=/app/frontend",
                    "-e", f"ADMIN_PASSWORD={PASSWORD}", "-e", "R2_ENDPOINT=http://fixture:9000",
                    "-e", "R2_BUCKET=test", "-e", "R2_ACCESS_KEY_ID=test", "-e", "R2_SECRET_ACCESS_KEY=test",
                    "-e", f"R2_PUBLIC_URL={s3}/test", "-e", "COOKIE_SECURE=true",
