@@ -82,7 +82,7 @@ const editor = useEditor({
   content: { type: "doc", content: readPostBody(form.body) },
   editable: !props.busy,
   editorProps: {
-    attributes: { role: "textbox", "aria-label": "İçerik", "aria-multiline": "true", "aria-required": "true", spellcheck: "true", lang: "tr" },
+    attributes: { role: "textbox", "aria-label": "İçerik", "aria-multiline": "true", "aria-required": "true", spellcheck: "false", lang: "tr" },
     handleClickOn(view, _pos, node, nodePos, event) {
       if (node.type.name !== "blogImage" || !(event.target instanceof HTMLImageElement)) return false;
       view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, nodePos)));
@@ -146,7 +146,7 @@ async function save() {
 }
 </script>
 <template>
-  <form ref="formElement" class="post-editor" lang="tr" spellcheck="true" novalidate @submit.prevent="save">
+  <form ref="formElement" class="post-editor" lang="tr" spellcheck="false" novalidate @submit.prevent="save">
     <div class="post-editor-toolbar">
       <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadImage" />
       <span class="hint">{{ post ? "Yazıyı düzenle" : "Yeni yazı" }}</span>
@@ -173,7 +173,7 @@ async function save() {
     </fieldset>
     <PostArticle :title="form.title" :body="form.body" :date="date">
       <template #title>
-        <span ref="titleField" class="editable-title" :contenteditable="busy ? 'false' : 'plaintext-only'" role="textbox" aria-label="Başlık" aria-required="true" aria-multiline="false" :aria-disabled="busy" data-placeholder="Yazının başlığı" lang="tr" spellcheck="true" @input="updateTitle" @blur="suggestSlug" @keydown.enter.prevent="editor?.commands.focus()">{{ initialTitle }}</span>
+        <span ref="titleField" class="editable-title" :contenteditable="busy ? 'false' : 'plaintext-only'" role="textbox" aria-label="Başlık" aria-required="true" aria-multiline="false" :aria-disabled="busy" data-placeholder="Yazının başlığı" lang="tr" spellcheck="false" @input="updateTitle" @blur="suggestSlug" @keydown.enter.prevent="editor?.commands.focus()">{{ initialTitle }}</span>
       </template>
       <template #body><EditorContent :editor="editor" class="post-body" /></template>
     </PostArticle>
