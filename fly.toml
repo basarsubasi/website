@@ -1,48 +1,54 @@
-# Supply your app with scripts/deploy-fly.sh APP.
-primary_region = "ams"
-kill_signal = "SIGTERM"
-kill_timeout = 30
+# fly.toml app configuration file generated for basarsubasi-website on 2026-11-12T05:52:06+03:00
+#
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
+
+app = 'basarsubasi-website'
+primary_region = 'ams'
+kill_signal = 'SIGTERM'
+kill_timeout = '30s'
+# Suspend requires swap to be disabled.
+swap_size_mb = 0
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [deploy]
-  strategy = "rolling"
-  wait_timeout = "7m"
+  strategy = 'rolling'
+  wait_timeout = '7m0s'
 
 [env]
-  HTTP_ADDR = "0.0.0.0:8080"
-  HTTP_MAX_REQUESTS = "32"
-  HTTP_MAX_UPLOADS = "2"
-  HTTP_MAX_CONNECTIONS = "128"
-  DATABASE_PATH = "/data/website.db"
-  FRONTEND_DIR = "/app/frontend"
-  COOKIE_SECURE = "true"
-  TRUST_FLY_PROXY = "true"
-  RESTORE_TIMEOUT = "5m"
+  COOKIE_SECURE = 'true'
+  DATABASE_PATH = '/data/website.db'
+  FRONTEND_DIR = '/app/frontend'
+  HTTP_ADDR = '0.0.0.0:8080'
+  HTTP_MAX_CONNECTIONS = '128'
+  HTTP_MAX_REQUESTS = '32'
+  HTTP_MAX_UPLOADS = '2'
+  RESTORE_TIMEOUT = '5m'
+  TRUST_FLY_PROXY = 'true'
+
+[[mounts]]
+  source = 'website_data'
+  destination = '/data'
+  initial_size = '2gb'
+  snapshot_retention = 14
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 0
 
   [[http_service.checks]]
-    method = "GET"
-    path = "/api/health"
-    interval = "30s"
-    timeout = "5s"
-    # Allow the configured restore timeout plus time for the server to start.
-    grace_period = "310s"
-
-[[mounts]]
-  source = "website_data"
-  destination = "/data"
-  initial_size = "2gb"
-  snapshot_retention = 14
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '5m10s'
+    method = 'GET'
+    path = '/api/health'
 
 [[vm]]
-  cpu_kind = "shared"
+  memory = '256mb'
   cpus = 1
-  memory = "256mb"
+  memory_mb = 256
