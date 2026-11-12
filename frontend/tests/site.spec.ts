@@ -231,13 +231,13 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await expect(figure.locator("img")).toHaveAttribute("src", /\/blog\/images\/[^/]+$/);
   await expect(figure.locator("img")).toHaveAttribute("width", "1");
   await expect(figure.locator("img")).toHaveAttribute("height", "1");
-  await expect(figure.getByRole("button", { name: "Görseli sil", exact: true })).toBeHidden();
+  await expect(page.locator(".image-size-controls").getByRole("button", { name: "Görseli sil", exact: true })).toBeHidden();
   const captionLayout = () => figure.locator("figcaption").evaluate(el => ({
     width: el.getBoundingClientRect().width, font: getComputedStyle(el).fontSize,
   }));
   const originalCaption = await captionLayout();
   await figure.locator("img").click();
-  await expect(figure.getByRole("button", { name: "Görseli sil", exact: true })).toBeVisible();
+  await expect(page.locator(".image-size-controls").getByRole("button", { name: "Görseli sil", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "%25", exact: true }).click();
   expect(await captionLayout()).toEqual(originalCaption);
   await page.getByRole("button", { name: "%50", exact: true }).click();
@@ -267,11 +267,11 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.getByRole("listitem").filter({ hasText: "Image journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
   await figure.locator("img").click();
   await page.route("**/api/admin/blog/images/*", route => route.fulfill({ status: 503, json: { error: "Storage unavailable" } }));
-  await figure.getByRole("button", { name: "Görseli sil", exact: true }).click();
+  await page.locator(".image-size-controls").getByRole("button", { name: "Görseli sil", exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(figure.locator("img")).toBeVisible();
   await page.unroute("**/api/admin/blog/images/*");
-  await figure.getByRole("button", { name: "Görseli sil", exact: true }).click();
+  await page.locator(".image-size-controls").getByRole("button", { name: "Görseli sil", exact: true }).click();
   await expect(figure).toHaveCount(0);
   expect((await page.request.get(src!)).status()).toBe(404);
   await page.getByLabel("İçerik", { exact: true }).press("ControlOrMeta+z");

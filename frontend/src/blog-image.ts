@@ -5,7 +5,7 @@ import { imageURL, imageWidth, imageDimension } from "./post-content";
 export const BlogImage = Node.create({
   name: "blogImage",
   addOptions() {
-    return { deleteImage: async (_src: string) => {}, isDeleted: (_src: string) => false };
+    return { isDeleted: (_src: string) => false };
   },
   addProseMirrorPlugins() {
     return [new Plugin({
@@ -21,7 +21,7 @@ export const BlogImage = Node.create({
     })];
   },
   addNodeView() {
-    return ({ node, editor }) => {
+    return ({ node }) => {
       let current = node;
       const dom = document.createElement("figure");
       dom.className = "blog-image";
@@ -32,20 +32,7 @@ export const BlogImage = Node.create({
       const img = document.createElement("img");
       img.alt = "";
       img.decoding = "async";
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "blog-image-delete";
-      button.textContent = "Görseli sil";
-      button.title = "Görseli R2’den kalıcı olarak sil";
-      button.onmousedown = event => event.preventDefault();
-      button.onclick = async event => {
-        event.preventDefault();
-        if (!editor.isEditable || button.disabled) return;
-        button.disabled = true;
-        try { await this.options.deleteImage(current.attrs.src); }
-        finally { button.disabled = false; }
-      };
-      frame.append(img, button);
+      frame.append(img);
       const caption = document.createElement("figcaption");
       caption.dataset.placeholder = "Görsel açıklaması ekleyin…";
       dom.append(frame, caption);
@@ -64,7 +51,6 @@ export const BlogImage = Node.create({
         update(node) { if (node.type.name !== "blogImage") return false; current = node; update(); return true; },
         selectNode() { dom.classList.add("ProseMirror-selectednode"); },
         deselectNode() { dom.classList.remove("ProseMirror-selectednode"); },
-        stopEvent: event => button.contains(event.target as globalThis.Node),
         ignoreMutation: mutation => mutation.type !== "selection" && !caption.contains(mutation.target),
       };
     };

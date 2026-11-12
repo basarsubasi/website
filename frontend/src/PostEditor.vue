@@ -78,7 +78,7 @@ async function deleteImage(src: string) {
   finally { deletingImage.value = false; editor.value?.setEditable(!props.busy, false); }
 }
 const editor = useEditor({
-  extensions: [BlogImage.configure({ deleteImage, isDeleted: (src: string) => deletedImages.has(src) }), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
+  extensions: [BlogImage.configure({ isDeleted: (src: string) => deletedImages.has(src) }), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
   content: { type: "doc", content: readPostBody(form.body) },
   editable: !props.busy,
   editorProps: {
@@ -156,10 +156,11 @@ async function save() {
         <button type="submit" :disabled="busy || uploading || deletingImage">Yazıyı kaydet</button>
         <button type="button" :disabled="busy || uploading || deletingImage" @click="emit('cancel')">Vazgeç</button>
       </div>
-    </div>
-    <div v-if="editor?.isActive('blogImage')" class="image-size-controls" aria-label="Görsel boyutu">
-      <span>Görsel genişliği</span>
-      <button v-for="width in [25, 50, 75, 100]" :key="width" type="button" :disabled="busy || uploading || deletingImage" :aria-pressed="editor.getAttributes('blogImage').width === width" @click="editor.chain().focus().updateAttributes('blogImage', { width }).run()">%{{ width }}</button>
+      <div v-if="editor?.isActive('blogImage')" class="image-size-controls" aria-label="Görsel boyutu">
+        <span>Görsel genişliği</span>
+        <button v-for="width in [25, 50, 75, 100]" :key="width" type="button" :disabled="busy || uploading || deletingImage" :aria-pressed="editor.getAttributes('blogImage').width === width" @click="editor.chain().focus().updateAttributes('blogImage', { width }).run()">%{{ width }}</button>
+        <button type="button" class="image-delete-control" title="Görseli kalıcı olarak sil" :disabled="busy || uploading || deletingImage" @mousedown.prevent @click="deleteImage(editor.getAttributes('blogImage').src)">Görseli sil</button>
+      </div>
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <fieldset v-show="settingsOpen" id="post-settings" class="post-settings" :disabled="busy || uploading || deletingImage">

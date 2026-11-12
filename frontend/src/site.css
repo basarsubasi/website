@@ -212,7 +212,7 @@ button:focus-visible {
 .post-editor-toolbar {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   background: white;
   display: flex;
   align-items: center;
@@ -258,4 +258,9 @@ button:focus-visible {
 .editable-title:focus,
 .post-editor .tiptap:focus {
   outline: none;
+}
+
+.post-editor-toolbar .image-size-controls {
+  flex-basis: 100%;
+  margin: 0;
 }
