@@ -4,7 +4,7 @@ import { EditorContent, useEditor } from "@tiptap/vue-3";
 import { NodeSelection } from "@tiptap/pm/state";
 import { BlogImage } from "./blog-image";
 import { paragraphsToDocument, readPostBody, writePostBody } from "./post-content";
-import { api, message } from "./api";
+import { api, message, send } from "./api";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
@@ -15,7 +15,7 @@ import PostArticle from "./PostArticle.vue";
 import type { Post, PostInput } from "./types";
 
 const props = defineProps<{ post: Post | null; busy: boolean }>();
-const emit = defineEmits<{ save: [value: PostInput]; cancel: [] }>();
+const emit = defineEmits<{ save: [value: PostInput]; cancel: []; dirty: [value: boolean] }>();
 const form = reactive<PostInput>({
   slug: props.post?.slug ?? "",
   title: props.post?.title ?? "",
@@ -23,6 +23,8 @@ const form = reactive<PostInput>({
   body: props.post?.body ?? "",
   published: props.post?.published ?? 0,
 });
+const snapshot = () => JSON.stringify({ ...form, body: readPostBody(form.body) });
+const initialForm = snapshot();
 const initialTitle = form.title;
 const date = props.post?.created_at ?? new Date().toISOString();
 const settingsOpen = ref(false);
@@ -31,15 +33,19 @@ const titleField = ref<HTMLElement>();
 const formElement = ref<HTMLFormElement>();
 
 const uploading = ref(false);
+const deletingImage = ref(false);
+watch(() => uploading.value || deletingImage.value || snapshot() !== initialForm,
+  value => emit("dirty", value), { immediate: true, flush: "sync" });
+const deletedImages = new Set<string>();
 const imageInput = ref<HTMLInputElement>();
 async function uploadImage(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file || !editor.value || props.busy || uploading.value) return;
+  if (!file || !editor.value || props.busy || uploading.value || deletingImage.value) return;
   if (file.size > 25 * 1024 * 1024) { error.value = "Görsel en fazla 25 MiB olabilir."; input.value = ""; return; }
   const position = editor.value.state.selection.from;
   uploading.value = true;
-  editor.value.setEditable(false);
+  editor.value.setEditable(false, false);
   error.value = "";
   try {
     const data = new FormData();
@@ -47,10 +53,32 @@ async function uploadImage(event: Event) {
     const result = await api<{ data: { url: string; width: number; height: number } }>("/admin/blog/images", { method: "POST", body: data });
     editor.value.chain().focus().insertContentAt(position, [{ type: "blogImage", attrs: { src: result.data.url, width: 100, intrinsicWidth: result.data.width, intrinsicHeight: result.data.height } }, { type: "paragraph" }]).run();
   } catch (err) { error.value = message(err); }
-  finally { uploading.value = false; editor.value?.setEditable(!props.busy); input.value = ""; }
+  finally { uploading.value = false; editor.value?.setEditable(!props.busy, false); input.value = ""; }
+}
+async function deleteImage(src: string) {
+  if (!editor.value || props.busy || uploading.value || deletingImage.value) return;
+  deletingImage.value = true;
+  editor.value.setEditable(false, false);
+  error.value = "";
+  try {
+    const path = new URL(src).pathname;
+    const filename = path.match(/\/images\/([^/]+)$/)?.[1];
+    if (!filename) throw new Error("Bu görsel silinemiyor.");
+    await api("/admin/blog/images/" + encodeURIComponent(filename), send("DELETE"));
+    deletedImages.add(src);
+    const transaction = editor.value.state.tr;
+    // Remove every occurrence of the deleted file in this draft.
+    editor.value.state.doc.descendants((node, pos) => {
+      if (node.type.name === "blogImage" && node.attrs.src === src) {
+        transaction.delete(transaction.mapping.map(pos), transaction.mapping.map(pos + node.nodeSize));
+      }
+    });
+    editor.value.view.dispatch(transaction);
+  } catch (err) { error.value = message(err); }
+  finally { deletingImage.value = false; editor.value?.setEditable(!props.busy, false); }
 }
 const editor = useEditor({
-  extensions: [BlogImage, Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
+  extensions: [BlogImage.configure({ deleteImage, isDeleted: (src: string) => deletedImages.has(src) }), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
   content: { type: "doc", content: readPostBody(form.body) },
   editable: !props.busy,
   editorProps: {
@@ -73,7 +101,7 @@ const editor = useEditor({
     error.value = "";
   },
 });
-watch(() => props.busy, (busy) => editor.value?.setEditable(!busy && !uploading.value));
+watch(() => props.busy, (busy) => editor.value?.setEditable(!busy && !uploading.value && !deletingImage.value, false));
 onMounted(() => { if (!props.post) titleField.value?.focus(); });
 
 function updateTitle(event: Event) {
@@ -91,7 +119,7 @@ function suggestSlug() {
       .replace(/^-|-$/g, "");
 }
 async function save() {
-  if (props.busy || uploading.value) return;
+  if (props.busy || uploading.value || deletingImage.value) return;
   if (!form.title.trim()) {
     error.value = "Bir başlık yazın.";
     titleField.value?.focus();
@@ -123,18 +151,18 @@ async function save() {
       <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadImage" />
       <span class="hint">{{ post ? "Yazıyı düzenle" : "Yeni yazı" }}</span>
       <div class="actions">
-        <button type="button" :disabled="busy || uploading" @click="imageInput?.click()">{{ uploading ? "Yükleniyor…" : "Görsel ekle" }}</button>
-        <button type="button" :disabled="busy || uploading" :aria-expanded="settingsOpen" aria-controls="post-settings" @click="settingsOpen = !settingsOpen">Yazı ayarları</button>
-        <button type="submit" :disabled="busy || uploading">Yazıyı kaydet</button>
-        <button type="button" :disabled="busy || uploading" @click="emit('cancel')">Vazgeç</button>
+        <button type="button" :disabled="busy || uploading || deletingImage" @click="imageInput?.click()">{{ uploading ? "Yükleniyor…" : "Görsel ekle" }}</button>
+        <button type="button" :disabled="busy || uploading || deletingImage" :aria-expanded="settingsOpen" aria-controls="post-settings" @click="settingsOpen = !settingsOpen">Yazı ayarları</button>
+        <button type="submit" :disabled="busy || uploading || deletingImage">Yazıyı kaydet</button>
+        <button type="button" :disabled="busy || uploading || deletingImage" @click="emit('cancel')">Vazgeç</button>
       </div>
     </div>
     <div v-if="editor?.isActive('blogImage')" class="image-size-controls" aria-label="Görsel boyutu">
       <span>Görsel genişliği</span>
-      <button v-for="width in [25, 50, 75, 100]" :key="width" type="button" :disabled="busy || uploading" :aria-pressed="editor.getAttributes('blogImage').width === width" @click="editor.chain().focus().updateAttributes('blogImage', { width }).run()">%{{ width }}</button>
+      <button v-for="width in [25, 50, 75, 100]" :key="width" type="button" :disabled="busy || uploading || deletingImage" :aria-pressed="editor.getAttributes('blogImage').width === width" @click="editor.chain().focus().updateAttributes('blogImage', { width }).run()">%{{ width }}</button>
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <fieldset v-show="settingsOpen" id="post-settings" class="post-settings" :disabled="busy || uploading">
+    <fieldset v-show="settingsOpen" id="post-settings" class="post-settings" :disabled="busy || uploading || deletingImage">
       <label>Kısa bağlantı<input v-model="form.slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="200" placeholder="ilk-yazim" /></label>
       <label>Özet<textarea v-model="form.excerpt" rows="2" maxlength="2000"></textarea></label>
       <label>Durum<select v-model="form.published">

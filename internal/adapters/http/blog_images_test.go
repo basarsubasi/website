@@ -3,6 +3,8 @@ package httpadapter
 import (
 	"bytes"
 	"context"
+	"errors"
+	"github.com/basarsubasi/website/internal/domain"
 	"mime/multipart"
 	"net/http/httptest"
 	"strings"
@@ -24,8 +26,10 @@ func TestBlogImageUpload(t *testing.T) {
 		req.Header.Set("Content-Type", form.FormDataContentType())
 		return c.do(req, status)
 	}
+	c.request("DELETE", "/api/admin/blog/images/00000000-0000-0000-0000-000000000000.png", nil, 401)
 	upload(pngBytes(t), 401)
 	c.login()
+	c.request("DELETE", "/api/admin/blog/images/catalog.json", nil, 400)
 	upload([]byte("not an image"), 400)
 	result := item[struct {
 		URL    string `json:"url"`
@@ -42,4 +46,10 @@ func TestBlogImageUpload(t *testing.T) {
 	if err != nil || !bytes.Equal(raw, pngBytes(t)) {
 		t.Fatalf("image not stored: %v", err)
 	}
+	key := strings.TrimPrefix(result.URL, "https://images.example.com/")
+	c.request("DELETE", "/api/admin/blog/"+key, nil, 204)
+	if _, _, err := c.objects.Read(context.Background(), key); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("deleted image remains: %v", err)
+	}
+
 }

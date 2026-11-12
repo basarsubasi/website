@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { reactive, ref, onUnmounted } from "vue";
+import { reactive, ref, onUnmounted, watch } from "vue";
 import type { Photo, PhotoInput } from "./types";
 const props = defineProps<{ photo: Photo | null; busy: boolean }>();
 const emit = defineEmits<{
   save: [value: PhotoInput, file: File | null];
   cancel: [];
+  dirty: [value: boolean];
 }>();
 const form = reactive<PhotoInput>({
   color: props.photo?.color ?? "color",
@@ -16,6 +17,9 @@ const form = reactive<PhotoInput>({
 const file = ref<File | null>(null),
   preview = ref(""),
   error = ref("");
+const initialForm = JSON.stringify(form);
+watch(() => !!file.value || JSON.stringify(form) !== initialForm,
+  value => emit("dirty", value), { immediate: true, flush: "sync" });
 function chooseFile(event: Event) {
   if (preview.value) URL.revokeObjectURL(preview.value);
   file.value = null;

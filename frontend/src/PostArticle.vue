@@ -14,8 +14,8 @@ const paragraphs = computed(() => readPostBody(props.body));
     <slot name="body">
       <div class="post-body">
         <template v-for="(block, index) in paragraphs" :key="index">
-          <figure v-if="block.type === 'blogImage'" class="blog-image" :style="{ width: block.attrs?.width + '%' }">
-            <img :src="block.attrs?.src" :width="block.attrs?.intrinsicWidth || undefined" :height="block.attrs?.intrinsicHeight || undefined" alt="" :loading="index < 2 ? 'eager' : 'lazy'" :fetchpriority="index < 2 ? 'high' : 'auto'" decoding="async" />
+          <figure v-if="block.type === 'blogImage'" class="blog-image" >
+            <img :style="{ width: block.attrs?.width + '%' }" :src="block.attrs?.src" :width="block.attrs?.intrinsicWidth || undefined" :height="block.attrs?.intrinsicHeight || undefined" alt="" :loading="index < 2 ? 'eager' : 'lazy'" :fetchpriority="index < 2 ? 'high' : 'auto'" decoding="async" />
             <figcaption v-if="blockText(block)">{{ blockText(block) }}</figcaption>
           </figure>
           <p v-else>{{ blockText(block) }}</p>
@@ -26,12 +26,15 @@ const paragraphs = computed(() => readPostBody(props.body));
 </template>
 
 <style>
-.post-body .blog-image { margin: 1.5rem auto; max-width: 100%; }
-.post-body .blog-image img { display: block; width: 100%; height: auto; }
+.post-body .blog-image { margin: 1.5rem auto; width: 100%; max-width: 100%; }
+.post-body .blog-image img { display: block; width: 100%; height: auto; margin: 0 auto; }
 .post-body .blog-image figcaption { padding: .5rem .35rem .25rem; color: #888; font-size: .8em; font-style: italic; line-height: 1.5; white-space: pre-wrap; }
 .post-body .tiptap .blog-image { cursor: pointer; }
 .post-body .tiptap .blog-image:focus-within, .post-body .blog-image.ProseMirror-selectednode { outline: 1px solid #888; outline-offset: 5px; }
 .post-body .tiptap figcaption:empty::before, .post-body .tiptap figcaption:has(> br:only-child)::before { content: attr(data-placeholder); color: #999; pointer-events: none; }
+.blog-image-frame { position: relative; margin: 0 auto; }
+.blog-image-delete { display: none; position: absolute; top: .4rem; right: .4rem; z-index: 1; padding: .35rem .5rem; background: white; color: #a11; font: 13px sans-serif; }
+.ProseMirror-selectednode .blog-image-delete { display: block; }
 .image-size-controls { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: 1rem 0; }
 .image-size-controls button[aria-pressed="true"] { background: #ddd; color: #222; }
 </style>

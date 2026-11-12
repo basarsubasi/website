@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"io"
+	"regexp"
 	"time"
 	"uuid"
 
@@ -39,4 +40,21 @@ func (s *Service) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size 
 		return domain.BlogImage{}, &domain.StorageError{Operation: "upload photo", Err: err}
 	}
 	return domain.BlogImage{URL: url, Width: dimensions.Width, Height: dimensions.Height}, nil
+}
+
+var blogImageFilename = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|gif)$`)
+
+func (s *Service) DeleteBlogImage(ctx context.Context, filename string) error {
+	if !blogImageFilename.MatchString(filename) {
+		return domain.Invalid("Invalid blog image filename")
+	}
+	if s.blogImages == nil {
+		return domain.ErrUnavailable
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := s.blogImages.Delete(ctx, "images/"+filename); err != nil {
+		return &domain.StorageError{Operation: "delete blog image", Err: err}
+	}
+	return nil
 }

@@ -231,9 +231,17 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await expect(figure.locator("img")).toHaveAttribute("src", /\/blog\/images\/[^/]+$/);
   await expect(figure.locator("img")).toHaveAttribute("width", "1");
   await expect(figure.locator("img")).toHaveAttribute("height", "1");
+  await expect(figure.getByRole("button", { name: "Görseli sil", exact: true })).toBeHidden();
+  const captionLayout = () => figure.locator("figcaption").evaluate(el => ({
+    width: el.getBoundingClientRect().width, font: getComputedStyle(el).fontSize,
+  }));
+  const originalCaption = await captionLayout();
   await figure.locator("img").click();
+  await expect(figure.getByRole("button", { name: "Görseli sil", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "%25", exact: true }).click();
+  expect(await captionLayout()).toEqual(originalCaption);
   await page.getByRole("button", { name: "%50", exact: true }).click();
-  await expect(figure).toHaveAttribute("style", /width: 50%/);
+  await expect(figure.locator(".blog-image-frame")).toHaveAttribute("style", /width: 50%/);
   await figure.locator("figcaption").click();
   await page.keyboard.type("A quiet afternoon.");
   await page.getByRole("button", { name: "Yazı ayarları" }).click();
@@ -241,16 +249,37 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
   await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
   await page.getByRole("listitem").filter({ hasText: "Image journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
-  await expect(figure).toHaveAttribute("style", /width: 50%/);
+  await expect(figure.locator(".blog-image-frame")).toHaveAttribute("style", /width: 50%/);
   await expect(figure.locator("figcaption")).toHaveText("A quiet afternoon.");
   await page.goto("/blog/image-journal");
   await page.reload();
-  await expect(page.locator("figure")).toHaveAttribute("style", /width: 50%/);
+  await expect(page.locator("figure img")).toHaveAttribute("style", /width: 50%/);
   await expect(page.locator("figcaption")).toHaveText("A quiet afternoon.");
   await expect(page.locator("figcaption")).toHaveCSS("font-style", "italic");
   await expect(page.locator("figure img")).toHaveAttribute("width", "1");
   await expect(page.locator("figure img")).toHaveAttribute("height", "1");
   await expect(page.locator("figure img")).toHaveAttribute("loading", "eager");
+  const caption = page.locator("figure figcaption");
+  expect((await caption.boundingBox())!.width).toBeGreaterThan((await page.locator("figure img").boundingBox())!.width);
+  const src = await page.locator("figure img").getAttribute("src");
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
+  await page.getByRole("listitem").filter({ hasText: "Image journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
+  await figure.locator("img").click();
+  await page.route("**/api/admin/blog/images/*", route => route.fulfill({ status: 503, json: { error: "Storage unavailable" } }));
+  await figure.getByRole("button", { name: "Görseli sil", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(figure.locator("img")).toBeVisible();
+  await page.unroute("**/api/admin/blog/images/*");
+  await figure.getByRole("button", { name: "Görseli sil", exact: true }).click();
+  await expect(figure).toHaveCount(0);
+  expect((await page.request.get(src!)).status()).toBe(404);
+  await page.getByLabel("İçerik", { exact: true }).press("ControlOrMeta+z");
+  await expect(figure).toHaveCount(0);
+  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+  await page.goto("/blog/image-journal");
+  await expect(page.locator("figure")).toHaveCount(0);
 });
 
 
@@ -332,3 +361,59 @@ test("admin arrows save gallery order across pages and reloads", async ({ page }
     for (const id of ids) await page.request.delete("/api/admin/images/" + id);
   }
 });
+
+for (const kind of ["photo", "blog"] as const) {
+  test(`${kind} editor warns before discarding unsaved changes`, async ({ page }) => {
+    await login(page);
+    if (kind === "blog") await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
+    const add = page.getByRole("button", { name: kind === "photo" ? "Fotoğraf ekle" : "Yeni yazı", exact: true });
+    await add.click();
+    const cancel = page.getByRole("button", { name: "Vazgeç", exact: true });
+    // Untouched forms close without prompting.
+    await cancel.click();
+    await expect(add).toBeVisible();
+    await add.click();
+    const field = page.getByLabel(kind === "photo" ? "Ad / alternatif metin" : "Başlık", { exact: true });
+    await field.fill("Unsaved changes");
+    let prompt = page.waitForEvent("dialog");
+    await page.evaluate(() => { setTimeout(() => location.reload(), 0); });
+    let dialog = await prompt;
+    expect(dialog.type()).toBe("beforeunload");
+    await dialog.dismiss();
+    await expect(field).toHaveText(kind === "blog" ? "Unsaved changes" : "");
+    if (kind === "photo") await expect(field).toHaveValue("Unsaved changes");
+
+    prompt = page.waitForEvent("dialog");
+    const cancelClick = cancel.click();
+    dialog = await prompt;
+    expect(dialog.type()).toBe("confirm");
+    expect(dialog.message()).toContain("Kaydedilmemiş");
+    await dialog.dismiss();
+    await cancelClick;
+    await expect(field).toBeVisible();
+
+    if (kind === "photo") {
+      prompt = page.waitForEvent("dialog");
+      const switchTab = page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
+      await (await prompt).dismiss();
+      await switchTab;
+      await expect(field).toBeVisible();
+      prompt = page.waitForEvent("dialog");
+      const logout = page.getByRole("button", { name: "Çıkış yap", exact: true }).click();
+      await (await prompt).dismiss();
+      await logout;
+      await expect(field).toBeVisible();
+    }
+
+    prompt = page.waitForEvent("dialog");
+    const discard = cancel.click();
+    await (await prompt).accept();
+    await discard;
+    await expect(add).toBeVisible();
+    // The listener is removed after leaving the editor.
+    expect(await page.evaluate(() => {
+      const event = new Event("beforeunload", { cancelable: true });
+      return window.dispatchEvent(event);
+    })).toBe(true);
+  });
+}

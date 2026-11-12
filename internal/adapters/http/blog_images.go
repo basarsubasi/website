@@ -38,3 +38,11 @@ func (s *Server) uploadBlogImage(w http.ResponseWriter, r *http.Request) {
 	}
 	reply(w, http.StatusCreated, map[string]any{"data": image})
 }
+
+func (s *Server) deleteBlogImage(w http.ResponseWriter, r *http.Request) {
+	if err := s.service.DeleteBlogImage(r.Context(), r.PathValue("filename")); err != nil {
+		appError(w, err)
+		return
+	}
+	reply(w, http.StatusNoContent, nil)
+}

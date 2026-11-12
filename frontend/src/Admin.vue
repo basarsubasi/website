@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onMounted, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
 import { api, ApiError, send, message } from "./api";
 import type {
   Session,
@@ -9,6 +9,7 @@ import type {
   PostInput,
   ListResponse,
 } from "./types";
+import { onBeforeRouteLeave } from "vue-router";
 import PhotoEditor from "./PhotoEditor.vue";
 const PostEditor = defineAsyncComponent(() => import("./PostEditor.vue"));
 const authenticated = ref(false),
@@ -27,6 +28,25 @@ const editing = ref(false),
   photo = ref<Photo | null>(null),
   post = ref<Post | null>(null),
   deleting = ref<string | null>(null);
+const editorDirty = ref(false);
+const hasUnsavedChanges = computed(() => editing.value && (editorDirty.value || busy.value));
+function confirmLeave() {
+  return !hasUnsavedChanges.value || window.confirm("Kaydedilmemiş değişiklikleriniz var. Kaydetmeden çıkmak istediğinizden emin misiniz?");
+}
+function beforeUnload(event: BeforeUnloadEvent) {
+  if (!hasUnsavedChanges.value) return;
+  event.preventDefault();
+  event.returnValue = "";
+}
+watch(hasUnsavedChanges, active => {
+  if (active) window.addEventListener("beforeunload", beforeUnload);
+  else window.removeEventListener("beforeunload", beforeUnload);
+}, { flush: "sync" });
+onUnmounted(() => window.removeEventListener("beforeunload", beforeUnload));
+onBeforeRouteLeave(() => confirmLeave());
+function cancelEdit() {
+  if (confirmLeave()) editing.value = false;
+}
 function handleError(e: unknown) {
   error.value = message(e);
   if (e instanceof ApiError && e.status === 401) authenticated.value = false;
@@ -82,6 +102,7 @@ async function login() {
   }
 }
 async function logout() {
+  if (!confirmLeave()) return;
   busy.value = true;
   error.value = "";
   try {
@@ -98,6 +119,7 @@ async function logout() {
   }
 }
 async function changeTab(value: "photos" | "posts") {
+  if (!confirmLeave()) return;
   tab.value = value;
   page.value = 1;
   editing.value = false;
@@ -111,6 +133,7 @@ async function changePage(value: number) {
   await load();
 }
 function editPhoto(value: Photo | null) {
+  editorDirty.value = false;
   photo.value = value;
   editing.value = true;
   error.value = "";
@@ -118,6 +141,7 @@ function editPhoto(value: Photo | null) {
   deleting.value = null;
 }
 function editPost(value: Post | null) {
+  editorDirty.value = false;
   post.value = value;
   editing.value = true;
   error.value = "";
@@ -247,7 +271,8 @@ async function remove(id: string) {
           :photo="photo"
           :busy="busy"
           @save="savePhoto"
-          @cancel="editing = false"
+          @cancel="cancelEdit"
+          @dirty="editorDirty = $event"
         />
         <PostEditor
           v-else-if="editing && tab === 'posts'"
@@ -255,7 +280,8 @@ async function remove(id: string) {
           :post="post"
           :busy="busy"
           @save="savePost"
-          @cancel="editing = false"
+          @cancel="cancelEdit"
+          @dirty="editorDirty = $event"
         />
         <template v-else>
           <div class="actions">
