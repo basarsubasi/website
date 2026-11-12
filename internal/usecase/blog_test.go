@@ -19,7 +19,7 @@ func (r *postWriter) CreatePost(_ context.Context, p domain.Post) (domain.Post, 
 }
 func TestExcerptLimitCountsCharactersBeforeSaving(t *testing.T) {
 	repo := &postWriter{}
-	service := New(repo, nil)
+	service := New(repo, nil, nil)
 	input := domain.PostInput{Slug: "post", Title: "Title", Body: "Body", Excerpt: strings.Repeat("ş", MaxExcerptLength)}
 	if _, err := service.SavePost(context.Background(), "", input); err != nil || !repo.saved {
 		t.Fatal("valid Turkish excerpt rejected", err)

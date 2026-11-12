@@ -30,7 +30,7 @@ func TestBlogImageUpload(t *testing.T) {
 	result := item[struct {
 		URL string `json:"url"`
 	}](t, upload(pngBytes(t), 201))
-	if !strings.HasPrefix(result.URL, "https://images.example.com/blog/images/") {
+	if !strings.HasPrefix(result.URL, "https://images.example.com/images/") {
 		t.Fatalf("unexpected URL: %s", result.URL)
 	}
 	raw, _, err := c.objects.Read(context.Background(), strings.TrimPrefix(result.URL, "https://images.example.com/"))

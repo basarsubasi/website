@@ -33,7 +33,7 @@ type R2 struct {
 	publicURL string
 }
 
-// New creates the single public-bucket S3 client.
+// New creates an S3 client scoped to one bucket.
 func New(cfg Config) (*R2, error) {
 	if cfg.Bucket == "" || cfg.AccessKeyID == "" || cfg.SecretAccessKey == "" {
 		return nil, fmt.Errorf("R2 bucket and access credentials are required")

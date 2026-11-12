@@ -61,7 +61,7 @@ func (c *client) restart() {
 	if err := repo.Initialize(context.Background(), c.backup.LoadSnapshot); err != nil {
 		c.t.Fatal(err)
 	}
-	c.handler = New(usecase.New(repo, c.objects), Config{Password: testPassword, FrontendDir: c.dir})
+	c.handler = New(usecase.New(repo, c.objects, c.objects), Config{Password: testPassword, FrontendDir: c.dir})
 }
 func (c *client) do(req *http.Request, status int) *httptest.ResponseRecorder {
 	c.t.Helper()

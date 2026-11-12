@@ -15,12 +15,12 @@ func lookup(values map[string]string) func(string) (string, bool) {
 	return func(key string) (string, bool) { v, ok := values[key]; return v, ok }
 }
 func validEnv() map[string]string {
-	return map[string]string{"ADMIN_PASSWORD": "test-password-for-admin", "R2_ACCOUNT_ID": "account", "R2_ACCESS_KEY_ID": "key", "R2_SECRET_ACCESS_KEY": "secret", "R2_BUCKET": "website", "R2_PUBLIC_URL": "https://images.example.com"}
+	return map[string]string{"ADMIN_PASSWORD": "test-password-for-admin", "R2_ACCOUNT_ID": "account", "R2_ACCESS_KEY_ID": "key", "R2_SECRET_ACCESS_KEY": "secret", "R2_PHOTOS_BUCKET": "website", "R2_PHOTOS_PUBLIC_URL": "https://images.example.com", "R2_BLOG_BUCKET": "blog", "R2_BLOG_PUBLIC_URL": "https://blog-assets.example.com"}
 }
 func TestConfigPrecedenceAndDotEnv(t *testing.T) {
-	before, beforeSet := os.LookupEnv("R2_BUCKET")
+	before, beforeSet := os.LookupEnv("R2_PHOTOS_BUCKET")
 	file := filepath.Join(t.TempDir(), "config.env")
-	raw := "export ADMIN_PASSWORD='a long local password'\nHTTP_ADDR=127.0.0.1:9000 # local\nCOOKIE_SECURE=true\nR2_ACCOUNT_ID=account\nR2_ACCESS_KEY_ID=key\nR2_SECRET_ACCESS_KEY=secret\nR2_BUCKET=website\nR2_PUBLIC_URL=https://images.example.com\nFRONTEND_DIR=\"assets\\twith-tab\"\n"
+	raw := "export ADMIN_PASSWORD='a long local password'\nHTTP_ADDR=127.0.0.1:9000 # local\nCOOKIE_SECURE=true\nR2_ACCOUNT_ID=account\nR2_ACCESS_KEY_ID=key\nR2_SECRET_ACCESS_KEY=secret\nR2_PHOTOS_BUCKET=website\nR2_PHOTOS_PUBLIC_URL=https://images.example.com\nR2_BLOG_BUCKET=blog\nR2_BLOG_PUBLIC_URL=https://blog-assets.example.com\nFRONTEND_DIR=\"assets\\twith-tab\"\n"
 	if err := os.WriteFile(file, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -28,19 +28,19 @@ func TestConfigPrecedenceAndDotEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Address != ":8080" || cfg.SecureCookies || cfg.FrontendDir != "assets\twith-tab" || cfg.Storage.Endpoint != "https://account.r2.cloudflarestorage.com" {
+	if cfg.Address != ":8080" || cfg.SecureCookies || cfg.FrontendDir != "assets\twith-tab" || cfg.PhotoStorage.Endpoint != "https://account.r2.cloudflarestorage.com" {
 		t.Fatal("configuration precedence failed")
 	}
 	if _, err := loadConfig([]string{"-env", file}, lookup(map[string]string{"ADMIN_PASSWORD": ""})); err == nil {
 		t.Fatal("empty password accepted")
 	}
-	after, afterSet := os.LookupEnv("R2_BUCKET")
+	after, afterSet := os.LookupEnv("R2_PHOTOS_BUCKET")
 	if before != after || beforeSet != afterSet {
 		t.Fatal("process environment changed")
 	}
 }
 func TestMissingConfigurationFails(t *testing.T) {
-	for _, key := range []string{"ADMIN_PASSWORD", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_PUBLIC_URL"} {
+	for _, key := range []string{"ADMIN_PASSWORD", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_PHOTOS_BUCKET", "R2_PHOTOS_PUBLIC_URL", "R2_BLOG_BUCKET", "R2_BLOG_PUBLIC_URL"} {
 		t.Run(key, func(t *testing.T) {
 			env := validEnv()
 			delete(env, key)
@@ -58,7 +58,7 @@ func TestMissingConfigurationFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(*Config){func(c *Config) { c.Storage = nil }, func(c *Config) { c.Address = "" }, func(c *Config) { c.FrontendDir = "" }, func(c *Config) { c.AdminPassword = "" }} {
+	for _, mutate := range []func(*Config){func(c *Config) { c.PhotoStorage = nil }, func(c *Config) { c.BlogStorage = nil }, func(c *Config) { c.Address = "" }, func(c *Config) { c.FrontendDir = "" }, func(c *Config) { c.AdminPassword = "" }} {
 		invalid := cfg
 		mutate(&invalid)
 		if _, err := New(invalid); err == nil {
@@ -71,7 +71,8 @@ func TestMissingConfigurationFails(t *testing.T) {
 }
 func TestApplicationLoadsR2CatalogBeforeServing(t *testing.T) {
 	objects := testutil.NewObjects()
-	endpoint := testutil.S3Server(objects)
+	blog := testutil.NewObjects()
+	endpoint := testutil.S3BucketsServer(map[string]*testutil.Objects{"website": objects, "blog": blog})
 	defer endpoint.Close()
 	env := validEnv()
 	env["R2_ENDPOINT"] = endpoint.URL

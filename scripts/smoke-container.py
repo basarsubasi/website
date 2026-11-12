@@ -92,8 +92,8 @@ def main():
                    "-e", "HTTP_ADDR=:8080", "-e", "DATABASE_PATH=/data/website.db",
                    "-e", "FRONTEND_DIR=/app/frontend",
                    "-e", f"ADMIN_PASSWORD={PASSWORD}", "-e", "R2_ENDPOINT=http://fixture:9000",
-                   "-e", "R2_BUCKET=test", "-e", "R2_ACCESS_KEY_ID=test", "-e", "R2_SECRET_ACCESS_KEY=test",
-                   "-e", f"R2_PUBLIC_URL={s3}/test", "-e", "COOKIE_SECURE=true",
+                   "-e", "R2_PHOTOS_BUCKET=photos", "-e", "R2_BLOG_BUCKET=blog", "-e", "R2_ACCESS_KEY_ID=test", "-e", "R2_SECRET_ACCESS_KEY=test",
+                   "-e", f"R2_PHOTOS_PUBLIC_URL={s3}/photos", "-e", f"R2_BLOG_PUBLIC_URL={s3}/blog", "-e", "COOKIE_SECURE=true",
                    "-e", "TRUST_FLY_PROXY=true", "-e", "NO_PROXY=fixture", "-e", "no_proxy=fixture", image)
             base = address(container, 8080)
             wait_for(lambda: request(base, "/api/health")[0] == 200, "healthy application")

@@ -23,7 +23,7 @@ func main() {
 }
 
 func run(address, frontend string, s3Only bool) error {
-	storage := testutil.S3Server(testutil.NewObjects())
+	storage := testutil.S3BucketsServer(map[string]*testutil.Objects{"photos": testutil.NewObjects(), "blog": testutil.NewObjects()})
 	defer storage.Close()
 	if s3Only {
 		return http.ListenAndServe(address, storage.Config.Handler)
@@ -36,10 +36,12 @@ func run(address, frontend string, s3Only bool) error {
 	for key, value := range map[string]string{
 		"ADMIN_PASSWORD":       "ui-test-password-only",
 		"R2_ENDPOINT":          storage.URL,
-		"R2_BUCKET":            "test",
+		"R2_PHOTOS_BUCKET":     "photos",
+		"R2_BLOG_BUCKET":       "blog",
 		"R2_ACCESS_KEY_ID":     "test",
 		"R2_SECRET_ACCESS_KEY": "test",
-		"R2_PUBLIC_URL":        storage.URL + "/test",
+		"R2_PHOTOS_PUBLIC_URL": storage.URL + "/photos",
+		"R2_BLOG_PUBLIC_URL":   storage.URL + "/blog",
 		"COOKIE_SECURE":        "false",
 		"TRUST_FLY_PROXY":      "false",
 		"TRUSTED_PROXY_CIDRS":  "",

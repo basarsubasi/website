@@ -97,7 +97,7 @@ func (b *blockedBody) Close() error { return nil }
 
 func TestUploadLimitBeforeBodyReadAndGeneralRequestLimit(t *testing.T) {
 	c := setup(t)
-	c.handler = New(usecase.New(c.repo, c.objects), Config{Password: testPassword, FrontendDir: c.dir, MaxRequests: 2, MaxUploads: 1})
+	c.handler = New(usecase.New(c.repo, c.objects, c.objects), Config{Password: testPassword, FrontendDir: c.dir, MaxRequests: 2, MaxUploads: 1})
 	c.login()
 	body := &blockedBody{entered: make(chan struct{}), release: make(chan struct{})}
 	var once sync.Once

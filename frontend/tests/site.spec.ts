@@ -228,7 +228,7 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.getByLabel("İçerik", { exact: true }).fill("Before the image.");
   await page.locator('.post-editor input[type="file"]').setInputFiles({ name: "blog.png", mimeType: "image/png", buffer: png });
   const figure = page.locator(".tiptap figure");
-  await expect(figure.locator("img")).toHaveAttribute("src", /blog\/images\//);
+  await expect(figure.locator("img")).toHaveAttribute("src", /\/blog\/images\/[^/]+$/);
   await figure.locator("img").click();
   await page.getByRole("button", { name: "%50", exact: true }).click();
   await expect(figure).toHaveAttribute("style", /width: 50%/);

@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Service) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size int64) (string, error) {
-	if s.photos == nil {
+	if s.blogImages == nil {
 		return "", domain.ErrUnavailable
 	}
 	if size < 1 || size > MaxPhotoSize {
@@ -34,7 +34,7 @@ func (s *Service) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size 
 	}
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
-	url, err := s.photos.Put(ctx, "blog/images/"+uuid.NewV4().String()+"."+ext, file, size, contentType, nil)
+	url, err := s.blogImages.Put(ctx, "images/"+uuid.NewV4().String()+"."+ext, file, size, contentType, nil)
 	if err != nil {
 		return "", &domain.StorageError{Operation: "upload photo", Err: err}
 	}

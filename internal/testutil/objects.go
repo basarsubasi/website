@@ -141,7 +141,24 @@ func (m *Objects) Keys() []string {
 
 // S3Server implements the GET/PUT/DELETE subset used by the real AWS adapter.
 func S3Server(objects *Objects) *httptest.Server {
+	return httptest.NewServer(s3Handler(objects))
+}
+
+// S3BucketsServer isolates objects by bucket, including catalog.json.
+func S3BucketsServer(buckets map[string]*Objects) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bucket, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		objects, ok := buckets[bucket]
+		if !ok {
+			http.Error(w, "unknown bucket", http.StatusNotFound)
+			return
+		}
+		s3Handler(objects).ServeHTTP(w, r)
+	}))
+}
+
+func s3Handler(objects *Objects) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/"), "/", 2)
 		if len(parts) != 2 {
 			http.Error(w, "bucket/key required", 400)
@@ -231,5 +248,5 @@ func S3Server(objects *Objects) *httptest.Server {
 		default:
 			http.Error(w, "unsupported method", 405)
 		}
-	}))
+	})
 }

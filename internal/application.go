@@ -39,7 +39,8 @@ type Config struct {
 	MaxRequests    int
 	MaxUploads     int
 	MaxConnections int
-	Storage        *r2.Config
+	PhotoStorage   *r2.Config
+	BlogStorage    *r2.Config
 }
 
 func (c Config) validate() error {
@@ -49,17 +50,21 @@ func (c Config) validate() error {
 	if c.RestoreTimeout < 0 {
 		return fmt.Errorf("RESTORE_TIMEOUT must be positive")
 	}
-	if c.Storage == nil {
+	if c.PhotoStorage == nil || c.BlogStorage == nil {
 		return fmt.Errorf("required R2 configuration is nil")
 	}
 	for _, item := range []struct{ name, value string }{
 		{"DATABASE_PATH", c.DatabasePath}, {"HTTP_ADDR", c.Address}, {"FRONTEND_DIR", c.FrontendDir}, {"ADMIN_PASSWORD", c.AdminPassword},
-		{"R2_ENDPOINT or R2_ACCOUNT_ID", c.Storage.Endpoint}, {"R2_BUCKET", c.Storage.Bucket},
-		{"R2_ACCESS_KEY_ID", c.Storage.AccessKeyID}, {"R2_SECRET_ACCESS_KEY", c.Storage.SecretAccessKey}, {"R2_PUBLIC_URL", c.Storage.PublicURL},
+		{"R2_ENDPOINT or R2_ACCOUNT_ID", c.PhotoStorage.Endpoint}, {"R2_PHOTOS_BUCKET", c.PhotoStorage.Bucket},
+		{"R2_ACCESS_KEY_ID", c.PhotoStorage.AccessKeyID}, {"R2_SECRET_ACCESS_KEY", c.PhotoStorage.SecretAccessKey}, {"R2_PHOTOS_PUBLIC_URL", c.PhotoStorage.PublicURL},
+		{"R2_BLOG_BUCKET", c.BlogStorage.Bucket}, {"R2_BLOG_PUBLIC_URL", c.BlogStorage.PublicURL},
 	} {
 		if strings.TrimSpace(item.value) == "" {
 			return fmt.Errorf("required configuration %s is missing", item.name)
 		}
+	}
+	if c.PhotoStorage.Endpoint == c.BlogStorage.Endpoint && c.PhotoStorage.Bucket == c.BlogStorage.Bucket {
+		return fmt.Errorf("R2_PHOTOS_BUCKET and R2_BLOG_BUCKET must be different buckets")
 	}
 	if len(c.AdminPassword) < 16 {
 		return fmt.Errorf("ADMIN_PASSWORD must contain at least 16 characters")
@@ -68,19 +73,24 @@ func (c Config) validate() error {
 }
 
 type Application struct {
-	Repository *database.Repository
-	Backup     usecase.Backup
-	Objects    *r2.R2
-	Service    *usecase.Service
-	Handler    http.Handler
-	Server     *http.Server
+	Repository  *database.Repository
+	Backup      usecase.Backup
+	Objects     *r2.R2
+	BlogObjects *r2.R2
+	Service     *usecase.Service
+	Handler     http.Handler
+	Server      *http.Server
 }
 
 func New(cfg Config) (*Application, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	objects, err := r2.New(*cfg.Storage)
+	objects, err := r2.New(*cfg.PhotoStorage)
+	if err != nil {
+		return nil, err
+	}
+	blogObjects, err := r2.New(*cfg.BlogStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -94,19 +104,19 @@ func New(cfg Config) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	backup := r2.NewBackup(objects)
+	backup := r2.NewSplitBackup(objects, blogObjects)
 	if err = repo.Initialize(startup, backup.LoadSnapshot); err != nil {
 		repo.Close()
 		return nil, fmt.Errorf("initialize database from R2: %w", err)
 	}
-	service := usecase.New(repo, objects)
+	service := usecase.New(repo, objects, blogObjects)
 	handler := httpadapter.New(service, httpadapter.Config{
 		Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir,
 		SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy,
 		MaxRequests: cfg.MaxRequests, MaxUploads: cfg.MaxUploads,
 	})
 	server := &http.Server{Addr: cfg.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
-	return &Application{Repository: repo, Backup: backup, Objects: objects, Service: service, Handler: handler, Server: server}, nil
+	return &Application{Repository: repo, Backup: backup, Objects: objects, BlogObjects: blogObjects, Service: service, Handler: handler, Server: server}, nil
 }
 func Main() {
 	if err := Run(os.Args[1:]); err != nil {
@@ -292,7 +302,8 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 	if endpoint == "" && get("R2_ACCOUNT_ID") != "" {
 		endpoint = "https://" + get("R2_ACCOUNT_ID") + ".r2.cloudflarestorage.com"
 	}
-	cfg.Storage = &r2.Config{Endpoint: endpoint, Bucket: get("R2_BUCKET"), AccessKeyID: get("R2_ACCESS_KEY_ID"), SecretAccessKey: get("R2_SECRET_ACCESS_KEY"), PublicURL: get("R2_PUBLIC_URL")}
+	cfg.PhotoStorage = &r2.Config{Endpoint: endpoint, Bucket: get("R2_PHOTOS_BUCKET"), AccessKeyID: get("R2_ACCESS_KEY_ID"), SecretAccessKey: get("R2_SECRET_ACCESS_KEY"), PublicURL: get("R2_PHOTOS_PUBLIC_URL")}
+	cfg.BlogStorage = &r2.Config{Endpoint: endpoint, Bucket: get("R2_BLOG_BUCKET"), AccessKeyID: get("R2_ACCESS_KEY_ID"), SecretAccessKey: get("R2_SECRET_ACCESS_KEY"), PublicURL: get("R2_BLOG_PUBLIC_URL")}
 	if err := cfg.validate(); err != nil {
 		return Config{}, err
 	}

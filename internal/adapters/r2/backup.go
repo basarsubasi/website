@@ -32,6 +32,9 @@ func (b *Backup) repository(ctx context.Context) (*Repository, error) {
 	return b.repo, nil
 }
 func (b *Backup) LoadSnapshot(ctx context.Context) (domain.Snapshot, error) {
+	return b.loadSnapshot(ctx, true, true)
+}
+func (b *Backup) loadSnapshot(ctx context.Context, images, posts bool) (domain.Snapshot, error) {
 	result := domain.Snapshot{Images: []domain.Image{}, Posts: []domain.Post{}}
 	repo, err := b.repository(ctx)
 	if err != nil {
@@ -42,10 +45,14 @@ func (b *Backup) LoadSnapshot(ctx context.Context) (domain.Snapshot, error) {
 	if err = repo.load(ctx); err != nil {
 		return result, err
 	}
-	for _, photo := range repo.state.Images {
-		result.Images = append(result.Images, photo)
+	if images {
+		for _, photo := range repo.state.Images {
+			result.Images = append(result.Images, photo)
+		}
 	}
-	result.Posts, err = repo.restorePosts(ctx)
+	if posts {
+		result.Posts, err = repo.restorePosts(ctx)
+	}
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
