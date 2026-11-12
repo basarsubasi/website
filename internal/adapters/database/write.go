@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+
+	"github.com/basarsubasi/website/internal/adapters/database/dbquery"
 )
 
 func insert(ctx context.Context, tx *sql.Tx, kind, id, slug, color string, published int64, created string, v any) error {
@@ -11,7 +13,7 @@ func insert(ctx context.Context, tx *sql.Tx, kind, id, slug, color string, publi
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO content(kind,id,slug,color,published,created_at,payload) VALUES(?,?,?,?,?,?,?)", kind, id, slug, color, published, created, raw)
+	err = dbquery.New(tx).InsertContent(ctx, dbquery.InsertContentParams{Kind: kind, ID: id, Slug: slug, Color: color, Published: published, CreatedAt: created, Payload: raw})
 	return dbError(err)
 }
 
@@ -20,7 +22,7 @@ func enqueue(ctx context.Context, tx *sql.Tx, op string, v any) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO backup_queue(operation,payload) VALUES(?,?)", op, raw)
+	err = dbquery.New(tx).EnqueueBackup(ctx, dbquery.EnqueueBackupParams{Operation: op, Payload: raw})
 	return err
 }
 

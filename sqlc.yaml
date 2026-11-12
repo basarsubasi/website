@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: sqlite
+    schema:
+      - internal/adapters/database/schema.sql
+      - internal/adapters/database/post_summaries.sql
+    queries: internal/adapters/database/queries.sql
+    gen:
+      go:
+        package: dbquery
+        out: internal/adapters/database/dbquery
+        emit_empty_slices: true

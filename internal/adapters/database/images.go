@@ -5,21 +5,20 @@ import (
 	"database/sql"
 	"encoding/json"
 
+	"github.com/basarsubasi/website/internal/adapters/database/dbquery"
 	"github.com/basarsubasi/website/internal/domain"
 )
 
 func (r *Repository) GetImage(ctx context.Context, id string) (domain.Image, error) {
-	return scan[domain.Image](r.db.QueryRowContext(ctx, "SELECT payload FROM content WHERE kind='image' AND id=?", id))
+	return decodePayload[domain.Image](dbquery.New(r.db).GetImage(ctx, id))
 }
 
 func (r *Repository) ListImages(ctx context.Context, pagination domain.Pagination, color string) (domain.Page[domain.Image], error) {
-	where := "kind='image'"
-	args := []any{}
-	if color != "" {
-		where += " AND color=?"
-		args = append(args, color)
-	}
-	return list[domain.Image](ctx, r.db, pagination, where, args...)
+	return listPage[domain.Image](ctx, r.db, pagination, func(q *dbquery.Queries) (int64, error) {
+		return q.CountImages(ctx, color)
+	}, func(q *dbquery.Queries) ([][]byte, error) {
+		return q.ListImages(ctx, dbquery.ListImagesParams{Color: color, PageLimit: int64(pagination.Limit), PageOffset: int64((pagination.Page - 1) * pagination.Limit)})
+	})
 }
 
 func (r *Repository) CreateImage(ctx context.Context, image domain.Image) (domain.Image, error) {
@@ -37,7 +36,7 @@ func (r *Repository) UpdateImage(ctx context.Context, id string, input domain.Ph
 	var image domain.Image
 	err := r.change(ctx, func(tx *sql.Tx) error {
 		var err error
-		image, err = scan[domain.Image](tx.QueryRowContext(ctx, "SELECT payload FROM content WHERE kind='image' AND id=?", id))
+		image, err = decodePayload[domain.Image](dbquery.New(tx).GetImage(ctx, id))
 		if err != nil {
 			return err
 		}
@@ -50,7 +49,7 @@ func (r *Repository) UpdateImage(ctx context.Context, id string, input domain.Ph
 		if err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, "UPDATE content SET color=?,payload=? WHERE kind='image' AND id=?", image.Color, raw, id); err != nil {
+		if err = dbquery.New(tx).UpdateImage(ctx, dbquery.UpdateImageParams{Color: image.Color, Payload: raw, ID: id}); err != nil {
 			return err
 		}
 		return enqueue(ctx, tx, "image", image)
@@ -60,11 +59,11 @@ func (r *Repository) UpdateImage(ctx context.Context, id string, input domain.Ph
 
 func (r *Repository) DeleteImage(ctx context.Context, id string) error {
 	return r.change(ctx, func(tx *sql.Tx) error {
-		image, err := scan[domain.Image](tx.QueryRowContext(ctx, "SELECT payload FROM content WHERE kind='image' AND id=?", id))
+		image, err := decodePayload[domain.Image](dbquery.New(tx).GetImage(ctx, id))
 		if err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, "DELETE FROM content WHERE kind='image' AND id=?", id); err != nil {
+		if err = dbquery.New(tx).DeleteImage(ctx, id); err != nil {
 			return err
 		}
 		return enqueue(ctx, tx, "delete-image", image)

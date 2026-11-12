@@ -5,52 +5,43 @@ import (
 	"database/sql"
 	"encoding/json"
 
+	"github.com/basarsubasi/website/internal/adapters/database/dbquery"
 	"github.com/basarsubasi/website/internal/domain"
 )
 
-type scanner interface{ Scan(...any) error }
-
-func scan[T any](row scanner) (T, error) {
+func decodePayload[T any](raw []byte, err error) (T, error) {
 	var result T
-	var raw []byte
-	if err := row.Scan(&raw); err != nil {
+	if err != nil {
 		return result, dbError(err)
 	}
-	err := json.Unmarshal(raw, &result)
+	err = json.Unmarshal(raw, &result)
 	return result, err
 }
 
-func list[T any](ctx context.Context, db *sql.DB, p domain.Pagination, where string, args ...any) (domain.Page[T], error) {
-	return listFrom[T](ctx, db, p, "content", where, args...)
-}
-
-// table and where are static SQL fragments supplied only by this package.
-func listFrom[T any](ctx context.Context, db *sql.DB, p domain.Pagination, table, where string, args ...any) (domain.Page[T], error) {
+// Count and page reads share a snapshot so concurrent writes cannot skew totals.
+func listPage[T any](ctx context.Context, db *sql.DB, p domain.Pagination, count func(*dbquery.Queries) (int64, error), list func(*dbquery.Queries) ([][]byte, error)) (domain.Page[T], error) {
 	result := domain.Page[T]{Data: []T{}, Page: p.Page, Limit: p.Limit}
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return result, err
 	}
 	defer tx.Rollback()
-	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM "+table+" WHERE "+where, args...).Scan(&result.Total); err != nil {
-		return result, err
-	}
-	args = append(args, p.Limit, (p.Page-1)*p.Limit)
-	rows, err := tx.QueryContext(ctx, "SELECT payload FROM "+table+" WHERE "+where+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?", args...)
+	q := dbquery.New(tx)
+	total, err := count(q)
 	if err != nil {
 		return result, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		v, err := scan[T](rows)
+	result.Total = total
+	rows, err := list(q)
+	if err != nil {
+		return result, err
+	}
+	for _, raw := range rows {
+		value, err := decodePayload[T](raw, nil)
 		if err != nil {
 			return result, err
 		}
-		result.Data = append(result.Data, v)
+		result.Data = append(result.Data, value)
 	}
-	if err = rows.Err(); err != nil {
-		return result, err
-	}
-	rows.Close()
 	return result, tx.Commit()
 }

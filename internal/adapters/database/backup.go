@@ -9,14 +9,14 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/basarsubasi/website/internal/adapters/database/dbquery"
 	"github.com/basarsubasi/website/internal/domain"
 	"github.com/basarsubasi/website/internal/usecase"
 )
 
 func (r *Repository) PendingBackups(ctx context.Context) (int, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx, "SELECT count(*) FROM backup_queue").Scan(&count)
-	return count, err
+	count, err := dbquery.New(r.db).CountBackups(ctx)
+	return int(count), err
 }
 
 // SyncBackups delivers a bounded FIFO batch. An advisory file lock serializes
@@ -36,10 +36,8 @@ func (r *Repository) SyncBackups(ctx context.Context, backup usecase.Backup) err
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 	for i := 0; i < 100; i++ {
-		var sequence int64
-		var operation string
-		var raw []byte
-		err = r.db.QueryRowContext(ctx, "SELECT sequence,operation,payload FROM backup_queue ORDER BY sequence LIMIT 1").Scan(&sequence, &operation, &raw)
+		item, err := dbquery.New(r.db).NextBackup(ctx)
+		sequence, operation, raw := item.Sequence, item.Operation, item.Payload
 		if errors.Is(err, sql.ErrNoRows) {
 			return backup.Maintain(ctx)
 		}
@@ -71,7 +69,7 @@ func (r *Repository) SyncBackups(ctx context.Context, backup usecase.Backup) err
 		if err != nil {
 			return fmt.Errorf("backup queue item %d: %w", sequence, err)
 		}
-		if _, err = r.db.ExecContext(ctx, "DELETE FROM backup_queue WHERE sequence=?", sequence); err != nil {
+		if err = dbquery.New(r.db).DeleteBackup(ctx, sequence); err != nil {
 			return err
 		}
 	}

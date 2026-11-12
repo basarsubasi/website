@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/basarsubasi/website/internal/adapters/database/dbquery"
 	"github.com/basarsubasi/website/internal/domain"
 )
 
 // Initialize imports a consistent backup once. An empty but initialized database
 // stays empty on restart; deleted records cannot be resurrected by stale backups.
 func (r *Repository) Initialize(ctx context.Context, load func(context.Context) (domain.Snapshot, error)) error {
-	var value string
-	err := r.db.QueryRowContext(ctx, "SELECT value FROM settings WHERE key='initialized'").Scan(&value)
+	_, err := dbquery.New(r.db).GetInitialized(ctx)
 	if err == nil {
 		return nil
 	}
@@ -24,7 +24,7 @@ func (r *Repository) Initialize(ctx context.Context, load func(context.Context) 
 		return err
 	}
 	return r.change(ctx, func(tx *sql.Tx) error {
-		err := tx.QueryRowContext(ctx, "SELECT value FROM settings WHERE key='initialized'").Scan(&value)
+		_, err := dbquery.New(tx).GetInitialized(ctx)
 		if err == nil {
 			return nil
 		}
@@ -41,7 +41,7 @@ func (r *Repository) Initialize(ctx context.Context, load func(context.Context) 
 				return err
 			}
 		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO settings(key,value) VALUES('initialized','1')")
+		err = dbquery.New(tx).SetInitialized(ctx)
 		return err
 	})
 }

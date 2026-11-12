@@ -44,3 +44,13 @@ test-ui:
 
 test-container:
 	python3 scripts/smoke-container.py
+
+# Keep generated query code reproducible without adding sqlc to runtime dependencies.
+SQLC = go run -mod=mod github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+
+.PHONY: sqlc sqlc-check
+sqlc:
+	$(SQLC) generate
+
+sqlc-check:
+	$(SQLC) diff
