@@ -41,9 +41,13 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	imageURL, err := app.Service.UploadBlogImage(ctx, bytes.NewReader(data.Bytes()), int64(data.Len()))
+	blogImage, err := app.Service.UploadBlogImage(ctx, bytes.NewReader(data.Bytes()), int64(data.Len()))
 	if err != nil {
 		t.Fatal(err)
+	}
+	imageURL := blogImage.URL
+	if photo.Width != 2 || photo.Height != 2 || blogImage.Width != 2 || blogImage.Height != 2 {
+		t.Fatal("upload dimensions missing")
 	}
 	if !strings.HasPrefix(photo.ImageURL, endpoint.URL+"/photos/photos/") || !strings.HasPrefix(imageURL, endpoint.URL+"/blog/images/") {
 		t.Fatalf("wrong bucket URLs: %s %s", photo.ImageURL, imageURL)

@@ -21,6 +21,9 @@ func TestR2S3Requests(t *testing.T) {
 		if !strings.Contains(r.Header.Get("Authorization"), "/auto/s3/aws4_request") {
 			t.Error("request not signed for auto region")
 		}
+		if r.Method == "PUT" && r.Header.Get("Cache-Control") != "public, max-age=31536000, immutable" {
+			t.Errorf("image cache policy missing: %q", r.Header.Get("Cache-Control"))
+		}
 		switch {
 		case r.Method == "PUT" && r.Header.Get("X-Amz-Copy-Source") != "":
 			source, err := url.PathUnescape(r.Header.Get("X-Amz-Copy-Source"))
@@ -71,5 +74,35 @@ func TestR2S3Requests(t *testing.T) {
 	}
 	if strings.Join(methods, ",") != "PUT,PUT,DELETE" {
 		t.Fatal(methods)
+	}
+}
+
+func TestR2CachePolicyOnlyAppliesToImages(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := "no-store"
+		if r.URL.Path == "/bucket/images/test.png" {
+			want = "public, max-age=31536000, immutable"
+		}
+		if got := r.Header.Get("Cache-Control"); got != want {
+			t.Errorf("%s cache policy = %q; want %q", r.URL.Path, got, want)
+		}
+		io.Copy(io.Discard, r.Body)
+		w.Header().Set("ETag", `"test"`)
+	}))
+	defer server.Close()
+	store, err := New(Config{Endpoint: server.URL, Bucket: "bucket", AccessKeyID: "test", SecretAccessKey: "test", PublicURL: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct{ key, mime string }{
+		{"images/test.png", "image/png"}, {"images/test.json", "application/json"},
+		{"posts/test/version.json", "application/json"}, {"catalog/part.json", "application/json"},
+	} {
+		if _, err := store.Put(context.Background(), item.key, strings.NewReader("original"), 8, item.mime, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.PutIf(context.Background(), "catalog.json", []byte("{}"), "", true); err != nil {
+		t.Fatal(err)
 	}
 }

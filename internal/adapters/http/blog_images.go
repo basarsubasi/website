@@ -31,10 +31,10 @@ func (s *Server) uploadBlogImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	url, err := s.service.UploadBlogImage(r.Context(), file, header.Size)
+	image, err := s.service.UploadBlogImage(r.Context(), file, header.Size)
 	if err != nil {
 		appError(w, err)
 		return
 	}
-	reply(w, http.StatusCreated, map[string]any{"data": map[string]string{"url": url}})
+	reply(w, http.StatusCreated, map[string]any{"data": image})
 }

@@ -10,23 +10,23 @@ import (
 	"github.com/basarsubasi/website/internal/domain"
 )
 
-func (s *Service) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size int64) (string, error) {
+func (s *Service) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size int64) (domain.BlogImage, error) {
 	if s.blogImages == nil {
-		return "", domain.ErrUnavailable
+		return domain.BlogImage{}, domain.ErrUnavailable
 	}
 	if size < 1 || size > MaxPhotoSize {
-		return "", domain.ErrTooLarge
+		return domain.BlogImage{}, domain.ErrTooLarge
 	}
-	_, format, err := image.DecodeConfig(file)
+	dimensions, format, err := image.DecodeConfig(file)
 	if err != nil {
-		return "", domain.Invalid("Upload a valid JPEG, PNG, or GIF image")
+		return domain.BlogImage{}, domain.Invalid("Upload a valid JPEG, PNG, or GIF image")
 	}
 	contentType, ok := map[string]string{"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif"}[format]
 	if !ok {
-		return "", domain.Invalid("Upload a JPEG, PNG, or GIF image")
+		return domain.BlogImage{}, domain.Invalid("Upload a JPEG, PNG, or GIF image")
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return "", err
+		return domain.BlogImage{}, err
 	}
 	ext := format
 	if ext == "jpeg" {
@@ -36,7 +36,7 @@ func (s *Service) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size 
 	defer cancel()
 	url, err := s.blogImages.Put(ctx, "images/"+uuid.NewV4().String()+"."+ext, file, size, contentType, nil)
 	if err != nil {
-		return "", &domain.StorageError{Operation: "upload photo", Err: err}
+		return domain.BlogImage{}, &domain.StorageError{Operation: "upload photo", Err: err}
 	}
-	return url, nil
+	return domain.BlogImage{URL: url, Width: dimensions.Width, Height: dimensions.Height}, nil
 }

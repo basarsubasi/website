@@ -49,6 +49,10 @@ func Seed(ctx context.Context, repo usecase.Repository, objects usecase.PhotoSto
 		if err != nil {
 			return count, err
 		}
+		dimensions, _, err := image.DecodeConfig(bytes.NewReader(raw))
+		if err != nil {
+			return count, err
+		}
 		location := locations[i%len(locations)]
 		input := domain.PhotoInput{Name: fmt.Sprintf("Sample landscape %02d", i+1), City: location[0], Country: location[1], YearTaken: 2024 + int64(i%3), Color: sampleColor(i + 1)}
 		metadata, err := usecase.PhotoMetadata(input, id)
@@ -60,7 +64,7 @@ func Seed(ctx context.Context, repo usecase.Repository, objects usecase.PhotoSto
 		if err != nil {
 			return count, err
 		}
-		_, err = repo.CreateImage(ctx, domain.Image{UUID: id, ImageURL: public, ObjectKey: key, Name: input.Name, Country: input.Country, City: input.City, YearTaken: input.YearTaken, FileType: "image/png", Color: input.Color})
+		_, err = repo.CreateImage(ctx, domain.Image{Width: dimensions.Width, Height: dimensions.Height, UUID: id, ImageURL: public, ObjectKey: key, Name: input.Name, Country: input.Country, City: input.City, YearTaken: input.YearTaken, FileType: "image/png", Color: input.Color})
 		if err != nil {
 			if !errors.Is(err, domain.ErrUncertain) {
 				_ = objects.Delete(ctx, key)

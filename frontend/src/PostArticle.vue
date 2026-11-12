@@ -15,7 +15,7 @@ const paragraphs = computed(() => readPostBody(props.body));
       <div class="post-body">
         <template v-for="(block, index) in paragraphs" :key="index">
           <figure v-if="block.type === 'blogImage'" class="blog-image" :style="{ width: block.attrs?.width + '%' }">
-            <img :src="block.attrs?.src" alt="" loading="lazy" />
+            <img :src="block.attrs?.src" :width="block.attrs?.intrinsicWidth || undefined" :height="block.attrs?.intrinsicHeight || undefined" alt="" :loading="index < 2 ? 'eager' : 'lazy'" :fetchpriority="index < 2 ? 'high' : 'auto'" decoding="async" />
             <figcaption v-if="blockText(block)">{{ blockText(block) }}</figcaption>
           </figure>
           <p v-else>{{ blockText(block) }}</p>

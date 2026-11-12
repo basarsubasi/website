@@ -26,3 +26,17 @@ URLs. When moving from one bucket, preserve the current SQLite database and
 migrate existing objects and backup catalogs before switching storage. A fresh
 SQLite database restores gallery records from the photos catalog and post
 records from the blog catalog. Full post backups include drafts.
+
+Image delivery preserves the original uploaded bytes. New image objects under
+`photos/` and `images/` receive `Cache-Control: public, max-age=31536000, immutable`;
+photo metadata updates retain this policy. Post backups and catalogs use
+`no-store`. Uploads also save image dimensions, which the UI uses to reserve
+space. The gallery eagerly loads its first row and lazy-loads later rows;
+single photos load eagerly with high priority, and blog images near the start
+of the body load eagerly while later images load lazily. Images decode
+asynchronously.
+
+Existing images remain compatible, but their stored dimensions and cache headers
+are not automatically backfilled. Serve both buckets through their custom
+Cloudflare domains for CDN caching. Smart Tiered Cache is a separate Cloudflare
+zone setting; it is not configured by this repository.

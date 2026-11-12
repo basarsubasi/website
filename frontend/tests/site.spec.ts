@@ -229,6 +229,8 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.locator('.post-editor input[type="file"]').setInputFiles({ name: "blog.png", mimeType: "image/png", buffer: png });
   const figure = page.locator(".tiptap figure");
   await expect(figure.locator("img")).toHaveAttribute("src", /\/blog\/images\/[^/]+$/);
+  await expect(figure.locator("img")).toHaveAttribute("width", "1");
+  await expect(figure.locator("img")).toHaveAttribute("height", "1");
   await figure.locator("img").click();
   await page.getByRole("button", { name: "%50", exact: true }).click();
   await expect(figure).toHaveAttribute("style", /width: 50%/);
@@ -246,4 +248,49 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await expect(page.locator("figure")).toHaveAttribute("style", /width: 50%/);
   await expect(page.locator("figcaption")).toHaveText("A quiet afternoon.");
   await expect(page.locator("figcaption")).toHaveCSS("font-style", "italic");
+  await expect(page.locator("figure img")).toHaveAttribute("width", "1");
+  await expect(page.locator("figure img")).toHaveAttribute("height", "1");
+  await expect(page.locator("figure img")).toHaveAttribute("loading", "eager");
+});
+
+
+test("image loading priorities and dimensions reserve space before downloads", async ({ page }) => {
+  await page.route("https://images.example.com/**", route => route.abort());
+  const photos = Array.from({ length: 9 }, (_, index) => ({
+    uuid: `photo-${index}`, image_url: `https://images.example.com/${index}.png`,
+    width: 1200, height: 800, name: `Photo ${index}`, color: "color",
+  }));
+  await page.route("**/api/images?*", route => route.fulfill({ json: { data: photos, total: 9 } }));
+  await page.goto("/gallery");
+  const thumbnails = page.locator(".grid img");
+  await expect(thumbnails).toHaveCount(9);
+  for (let index = 0; index < 9; index++) {
+    await expect(thumbnails.nth(index)).toHaveAttribute("loading", index < 3 ? "eager" : "lazy");
+    await expect(thumbnails.nth(index)).toHaveAttribute("decoding", "async");
+  }
+  await expect(thumbnails.first()).toHaveAttribute("fetchpriority", "high");
+  await page.route("**/api/images/photo-0", route => route.fulfill({ json: { data: photos[0] } }));
+  await thumbnails.first().click();
+  const main = page.locator(".single-image-page img");
+  await expect(main).toHaveAttribute("fetchpriority", "high");
+  await expect(main).toHaveAttribute("loading", "eager");
+  await expect(main).toHaveAttribute("width", "1200");
+  await expect(main).toHaveAttribute("height", "800");
+  const body = "blog-content-v1:" + JSON.stringify([
+    { type: "blogImage", attrs: { src: photos[0].image_url, width: 50, intrinsicWidth: 1200, intrinsicHeight: 800 } },
+    { type: "paragraph", content: [{ type: "text", text: "Below the first image." }] },
+    { type: "blogImage", attrs: { src: photos[1].image_url, width: 100, intrinsicWidth: 1200, intrinsicHeight: 800 } },
+  ]);
+  await page.route("**/api/posts/loading-policy", route => route.fulfill({ json: { data: {
+    title: "Loading policy", body, created_at: "2026-01-01T00:00:00Z",
+  } } }));
+  await page.goto("/blog/loading-policy");
+  const images = page.locator(".blog-image img");
+  await expect(images.first()).toHaveAttribute("loading", "eager");
+  await expect(images.first()).toHaveAttribute("fetchpriority", "high");
+  await expect(images.nth(1)).toHaveAttribute("loading", "lazy");
+  await expect(images.nth(1)).toHaveAttribute("decoding", "async");
+  const bounds = await images.first().boundingBox();
+  expect(bounds?.height).toBeGreaterThan(100);
+  expect(bounds!.width / bounds!.height).toBeCloseTo(1.5, 1);
 });

@@ -28,8 +28,13 @@ func TestBlogImageUpload(t *testing.T) {
 	c.login()
 	upload([]byte("not an image"), 400)
 	result := item[struct {
-		URL string `json:"url"`
+		URL    string `json:"url"`
+		Width  int    `json:"width"`
+		Height int    `json:"height"`
 	}](t, upload(pngBytes(t), 201))
+	if result.Width != 2 || result.Height != 2 {
+		t.Fatalf("unexpected image dimensions: %+v", result)
+	}
 	if !strings.HasPrefix(result.URL, "https://images.example.com/images/") {
 		t.Fatalf("unexpected URL: %s", result.URL)
 	}

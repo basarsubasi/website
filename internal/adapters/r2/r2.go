@@ -56,15 +56,24 @@ func New(cfg Config) (*R2, error) {
 	return &R2{client: client, bucket: cfg.Bucket, publicURL: strings.TrimRight(cfg.PublicURL, "/")}, nil
 }
 
+// Image uploads have unique keys and their bytes never change. Metadata edits
+// must preserve this policy; catalogs and post backups must not inherit it.
+func objectCacheControl(key, contentType string) string {
+	if (strings.HasPrefix(key, "photos/") || strings.HasPrefix(key, "images/")) && strings.HasPrefix(contentType, "image/") {
+		return "public, max-age=31536000, immutable"
+	}
+	return "no-store"
+}
+
 func (r *R2) Put(ctx context.Context, key string, body io.Reader, size int64, contentType string, metadata map[string]string) (string, error) {
-	_, err := r.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(r.bucket), Key: aws.String(key), Body: body, ContentLength: aws.Int64(size), ContentType: aws.String(contentType), Metadata: metadata})
+	_, err := r.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(r.bucket), Key: aws.String(key), Body: body, ContentLength: aws.Int64(size), ContentType: aws.String(contentType), Metadata: metadata, CacheControl: aws.String(objectCacheControl(key, contentType))})
 	if err != nil {
 		return "", err
 	}
 	return r.publicURL + "/" + key, nil
 }
 func (r *R2) UpdateMetadata(ctx context.Context, key, contentType string, metadata map[string]string) error {
-	_, err := r.client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(r.bucket), Key: aws.String(key), CopySource: aws.String(url.PathEscape(r.bucket + "/" + key)), MetadataDirective: types.MetadataDirectiveReplace, ContentType: aws.String(contentType), Metadata: metadata})
+	_, err := r.client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(r.bucket), Key: aws.String(key), CopySource: aws.String(url.PathEscape(r.bucket + "/" + key)), MetadataDirective: types.MetadataDirectiveReplace, ContentType: aws.String(contentType), Metadata: metadata, CacheControl: aws.String(objectCacheControl(key, contentType))})
 	return err
 }
 func (r *R2) Delete(ctx context.Context, key string) error {

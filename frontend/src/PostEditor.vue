@@ -44,8 +44,8 @@ async function uploadImage(event: Event) {
   try {
     const data = new FormData();
     data.append("image", file);
-    const result = await api<{ data: { url: string } }>("/admin/blog/images", { method: "POST", body: data });
-    editor.value.chain().focus().insertContentAt(position, [{ type: "blogImage", attrs: { src: result.data.url, width: 100 } }, { type: "paragraph" }]).run();
+    const result = await api<{ data: { url: string; width: number; height: number } }>("/admin/blog/images", { method: "POST", body: data });
+    editor.value.chain().focus().insertContentAt(position, [{ type: "blogImage", attrs: { src: result.data.url, width: 100, intrinsicWidth: result.data.width, intrinsicHeight: result.data.height } }, { type: "paragraph" }]).run();
   } catch (err) { error.value = message(err); }
   finally { uploading.value = false; editor.value?.setEditable(!props.busy); input.value = ""; }
 }

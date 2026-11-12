@@ -28,6 +28,6 @@ watch(
 <template>
   <p v-if="error" class="notice" role="alert">{{ error }}</p>
   <div v-else-if="image" class="single-image-page">
-    <img :src="image.image_url" :alt="image.name || 'Fotoğraf'" />
+    <img :src="image.image_url" :alt="image.name || 'Fotoğraf'" :width="image.width || undefined" :height="image.height || undefined" loading="eager" fetchpriority="high" decoding="async" />
   </div>
 </template>

@@ -6,6 +6,8 @@ export interface PhotoInput {
   year_taken: number;
 }
 export interface Photo extends PhotoInput {
+  width?: number;
+  height?: number;
   uuid: string;
   image_url: string;
   object_key: string;

@@ -70,7 +70,7 @@ func (s *Service) UploadImage(ctx context.Context, p domain.PhotoInput, file io.
 	if size < 1 || size > MaxPhotoSize {
 		return domain.Image{}, domain.ErrTooLarge
 	}
-	_, format, err := image.DecodeConfig(file)
+	dimensions, format, err := image.DecodeConfig(file)
 	if err != nil {
 		return domain.Image{}, domain.Invalid("Upload a valid JPEG, PNG, or GIF image")
 	}
@@ -92,7 +92,7 @@ func (s *Service) UploadImage(ctx context.Context, p domain.PhotoInput, file io.
 	if err != nil {
 		return domain.Image{}, &domain.StorageError{Operation: "upload photo", Err: err}
 	}
-	photo, err := s.repo.CreateImage(ctx, domain.Image{UUID: id, ImageURL: imageURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: contentType, Color: p.Color})
+	photo, err := s.repo.CreateImage(ctx, domain.Image{Width: dimensions.Width, Height: dimensions.Height, UUID: id, ImageURL: imageURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: contentType, Color: p.Color})
 	if err != nil && !errors.Is(err, domain.ErrUncertain) {
 		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()

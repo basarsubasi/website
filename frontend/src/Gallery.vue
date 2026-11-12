@@ -48,14 +48,18 @@ watch(
     <template v-else-if="!loading">
       <div class="grid">
         <RouterLink
-          v-for="image in images"
+          v-for="(image, index) in images"
           :key="image.uuid"
           :to="`/image/${image.uuid}`"
           class="grid-item"
           ><img
             :src="image.image_url"
             :alt="image.name || 'Fotoğraf'"
-            loading="eager"
+            :width="image.width || undefined"
+            :height="image.height || undefined"
+            :loading="index < 3 ? 'eager' : 'lazy'"
+            :fetchpriority="index === 0 ? 'high' : 'auto'"
+            decoding="async"
         /></RouterLink>
       </div>
       <p v-if="!images.length" class="notice">Henüz fotoğraf yok.</p>
