@@ -95,3 +95,17 @@ func (s *Server) getImage(w http.ResponseWriter, r *http.Request) {
 	}
 	reply(w, http.StatusOK, map[string]any{"data": data})
 }
+
+func (s *Server) moveImage(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Direction string `json:"direction"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if err := s.service.MoveImage(r.Context(), r.PathValue("uuid"), input.Direction); err != nil {
+		appError(w, err)
+		return
+	}
+	reply(w, http.StatusNoContent, nil)
+}

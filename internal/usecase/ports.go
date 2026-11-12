@@ -14,6 +14,7 @@ type Repository interface {
 	CreateImage(context.Context, domain.Image) (domain.Image, error)
 	UpdateImage(context.Context, string, domain.PhotoInput) (domain.Image, error)
 	DeleteImage(context.Context, string) error
+	MoveImage(context.Context, string, string) error
 	ListPosts(context.Context, domain.Pagination, bool) (domain.Page[domain.Post], error)
 	GetPost(context.Context, string) (domain.Post, error)
 	GetPostByID(context.Context, string) (domain.Post, error)

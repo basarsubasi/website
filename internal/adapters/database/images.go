@@ -69,3 +69,38 @@ func (r *Repository) DeleteImage(ctx context.Context, id string) error {
 		return enqueue(ctx, tx, "delete-image", image)
 	})
 }
+
+func (r *Repository) MoveImage(ctx context.Context, id, direction string) error {
+	return r.change(ctx, func(tx *sql.Tx) error {
+		q := dbquery.New(tx)
+		rows, err := q.AllImages(ctx)
+		if err != nil {
+			return err
+		}
+		images := make([]domain.Image, 0, len(rows))
+		for _, raw := range rows {
+			image, err := decodePayload[domain.Image](raw, nil)
+			if err != nil {
+				return err
+			}
+			images = append(images, image)
+		}
+		changed, err := domain.MoveImage(images, id, direction)
+		if err != nil {
+			return err
+		}
+		for _, image := range changed {
+			raw, err := json.Marshal(image)
+			if err != nil {
+				return err
+			}
+			if err := q.UpdateImage(ctx, dbquery.UpdateImageParams{Color: image.Color, Payload: raw, ID: image.UUID}); err != nil {
+				return err
+			}
+			if err := enqueue(ctx, tx, "image", image); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

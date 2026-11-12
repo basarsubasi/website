@@ -56,6 +56,7 @@ func New(service *usecase.Service, cfg Config) http.Handler {
 	mux.Handle("GET /api/admin/posts", s.admin(http.HandlerFunc(s.listPosts)))
 	mux.Handle("POST /api/admin/images", s.admin(limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadImage))))
 	mux.Handle("PUT /api/admin/images/{uuid}", s.admin(http.HandlerFunc(s.saveImage)))
+	mux.Handle("POST /api/admin/images/{uuid}/move", s.admin(http.HandlerFunc(s.moveImage)))
 	mux.Handle("DELETE /api/admin/images/{uuid}", s.admin(http.HandlerFunc(s.deleteImage)))
 	mux.Handle("POST /api/admin/blog/images", s.admin(limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadBlogImage))))
 	mux.Handle("POST /api/admin/posts", s.admin(http.HandlerFunc(s.savePost)))

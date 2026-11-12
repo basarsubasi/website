@@ -9,6 +9,33 @@ import (
 	"context"
 )
 
+const allImages = `-- name: AllImages :many
+SELECT payload FROM content WHERE kind='image'
+`
+
+func (q *Queries) AllImages(ctx context.Context) ([][]byte, error) {
+	rows, err := q.db.QueryContext(ctx, allImages)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]byte{}
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		items = append(items, payload)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const backfillPostSummaries = `-- name: BackfillPostSummaries :exec
 INSERT INTO post_summaries
  SELECT id,published,created_at,CAST(json_remove(CAST(payload AS TEXT),'$.body') AS BLOB)
@@ -178,7 +205,7 @@ func (q *Queries) InsertContent(ctx context.Context, arg InsertContentParams) er
 }
 
 const listImages = `-- name: ListImages :many
-SELECT payload FROM content WHERE kind='image' AND (color=?1 OR ?1 = '') ORDER BY created_at DESC,id DESC LIMIT ?3 OFFSET ?2
+SELECT payload FROM content WHERE kind='image' AND (color=?1 OR ?1 = '') ORDER BY COALESCE(NULLIF(json_extract(payload, '$.order_key'), ''), created_at || '/' || id) DESC LIMIT ?3 OFFSET ?2
 `
 
 type ListImagesParams struct {

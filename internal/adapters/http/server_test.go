@@ -227,7 +227,7 @@ func TestValidationAndCrossOrigin(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
 	req.Header.Set("Origin", "https://evil.example")
 	c.do(req, 403)
-	for _, path := range []string{"/", "/gallery", "/bw-photos", "/color-photos", "/blog/post", "/image/id", "/admin"} {
+	for _, path := range []string{"/", "/photos", "/bw-photos", "/color-photos", "/blog/post", "/photo/id", "/admin"} {
 		c.request("GET", path, nil, 200)
 	}
 	c.request("GET", "/missing.js", nil, 404)
@@ -254,4 +254,12 @@ func TestPublicReadsUseSQLiteDuringR2Outage(t *testing.T) {
 	if _, _, err := c.objects.Read(context.Background(), r2.CatalogKey); !errors.Is(err, offline) {
 		t.Fatal("public read unexpectedly touched R2")
 	}
+}
+
+func TestImageMoveRequiresAdminAndValidDirection(t *testing.T) {
+	c := setup(t)
+	c.request("POST", "/api/admin/images/missing/move", map[string]string{"direction": "up"}, http.StatusUnauthorized)
+	c.login()
+	c.request("POST", "/api/admin/images/missing/move", map[string]string{"direction": "sideways"}, http.StatusBadRequest)
+	c.request("POST", "/api/admin/images/missing/move", map[string]string{"direction": "up"}, http.StatusNotFound)
 }

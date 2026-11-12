@@ -114,3 +114,10 @@ func (s *Service) DeleteImage(ctx context.Context, id string) error {
 	// The repository deletes local metadata and durably queues remote cleanup.
 	return s.repo.DeleteImage(ctx, id)
 }
+
+func (s *Service) MoveImage(ctx context.Context, id, direction string) error {
+	if direction != "up" && direction != "down" {
+		return domain.Invalid("direction must be up or down")
+	}
+	return s.repo.MoveImage(ctx, id, direction)
+}

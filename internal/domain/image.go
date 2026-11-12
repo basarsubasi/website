@@ -1,6 +1,7 @@
 package domain
 
 type Image struct {
+	OrderKey  string `json:"order_key,omitempty"`
 	Width     int    `json:"width,omitempty"`
 	Height    int    `json:"height,omitempty"`
 	UUID      string `json:"uuid"`

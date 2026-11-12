@@ -146,6 +146,23 @@ async function savePhoto(value: PhotoInput, file: File | null) {
     busy.value = false;
   }
 }
+async function movePhoto(item: Photo, index: number, direction: "up" | "down") {
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    await api("/admin/images/" + item.uuid + "/move", send("POST", { direction }));
+    // Follow the photo when it moves across a page boundary.
+    if (direction === "up" && index === 0 && page.value > 1) page.value--;
+    else if (direction === "down" && index === 19) page.value++;
+    notice.value = "Fotoğraf sırası kaydedildi.";
+    await load();
+  } catch (e) {
+    handleError(e);
+  } finally {
+    busy.value = false;
+  }
+}
 async function savePost(value: PostInput) {
   busy.value = true;
   error.value = "";
@@ -254,7 +271,7 @@ async function remove(id: string) {
               {{ tab === "photos" ? "Henüz fotoğraf yok." : "Henüz yazı yok." }}
             </p>
             <ul v-if="tab === 'photos'" class="admin-list">
-              <li v-for="item in photos" :key="item.uuid">
+              <li v-for="(item, index) in photos" :key="item.uuid">
                 <img
                   :src="item.image_url"
                   :alt="item.name || 'Fotoğraf'"
@@ -270,6 +287,16 @@ async function remove(id: string) {
                   >
                 </div>
                 <div class="actions">
+                  <button
+                    aria-label="Yukarı taşı" title="Yukarı taşı"
+                    :disabled="busy || (page === 1 && index === 0)"
+                    @click="movePhoto(item, index, 'up')"
+                  >↑</button>
+                  <button
+                    aria-label="Aşağı taşı" title="Aşağı taşı"
+                    :disabled="busy || (page - 1) * 20 + index + 1 >= total"
+                    @click="movePhoto(item, index, 'down')"
+                  >↓</button>
                   <button :disabled="busy" @click="editPhoto(item)">Düzenle</button
                   ><button :disabled="busy" @click="deleting = item.uuid">
                     Sil

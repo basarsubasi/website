@@ -50,7 +50,7 @@ watch(
         <RouterLink
           v-for="(image, index) in images"
           :key="image.uuid"
-          :to="`/image/${image.uuid}`"
+          :to="`/photo/${image.uuid}`"
           class="grid-item"
           ><img
             :src="image.image_url"

@@ -14,7 +14,7 @@ const png = Buffer.from(
 );
 
 test("gallery and blog routes render without a site header", async ({ page }) => {
-  for (const path of ["/gallery", "/bw-photos", "/color-photos", "/blog", "/blog/missing-post"]) {
+  for (const path of ["/photos", "/bw-photos", "/color-photos", "/blog", "/blog/missing-post"]) {
     await page.goto(path);
     await expect(page.locator("main")).toBeVisible();
     await expect(page.getByRole("banner")).toHaveCount(0);
@@ -51,7 +51,7 @@ test("upload, view, edit, filter, and delete a photo", async ({ page }) => {
   await expect(image).toBeVisible();
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
   await image.click();
-  await expect(page).toHaveURL(/\/image\//);
+  await expect(page).toHaveURL(/\/photo\//);
   await page.reload();
   await expect(page.locator(".single-image-page img")).toBeVisible();
   await expect(page.locator(".single-image-page")).toHaveText("");
@@ -261,7 +261,7 @@ test("image loading priorities and dimensions reserve space before downloads", a
     width: 1200, height: 800, name: `Photo ${index}`, color: "color",
   }));
   await page.route("**/api/images?*", route => route.fulfill({ json: { data: photos, total: 9 } }));
-  await page.goto("/gallery");
+  await page.goto("/photos");
   const thumbnails = page.locator(".grid img");
   await expect(thumbnails).toHaveCount(9);
   for (let index = 0; index < 9; index++) {
@@ -293,4 +293,42 @@ test("image loading priorities and dimensions reserve space before downloads", a
   const bounds = await images.first().boundingBox();
   expect(bounds?.height).toBeGreaterThan(100);
   expect(bounds!.width / bounds!.height).toBeCloseTo(1.5, 1);
+});
+
+test("admin arrows save gallery order across pages and reloads", async ({ page }) => {
+  await login(page);
+  const ids: string[] = [];
+  try {
+    for (let i = 0; i < 21; i++) {
+      const response = await page.request.post("/api/admin/images", { multipart: {
+        photo: { name: "order.png", mimeType: "image/png", buffer: png },
+        metadata: JSON.stringify({ name: `Order ${i}`, color: "bw", year_taken: 2026 }),
+      } });
+      expect(response.ok()).toBeTruthy();
+      ids.push((await response.json()).data.uuid);
+    }
+    await page.reload();
+    const rows = page.locator(".admin-list > li");
+    await expect(rows.first()).toContainText("Order 20");
+    await expect(rows.first().getByRole("button", { name: "Yukarı taşı" })).toBeDisabled();
+    await rows.first().getByRole("button", { name: "Aşağı taşı" }).click();
+    await expect(rows.first()).toContainText("Order 19");
+    await page.reload();
+    await expect(rows.first()).toContainText("Order 19");
+    await rows.last().getByRole("button", { name: "Aşağı taşı" }).click();
+    await expect(rows.first()).toContainText("Order 1");
+    await expect(rows.first().getByRole("button", { name: "Aşağı taşı" })).toBeDisabled();
+    await rows.first().getByRole("button", { name: "Yukarı taşı" }).click();
+    await expect(rows).toHaveCount(20);
+    await expect(rows.last()).toContainText("Order 1");
+    await page.setViewportSize({ width: 375, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const path of ["/photos", "/bw-photos"]) {
+      await page.goto(path);
+      await expect(page.locator(".grid img").first()).toHaveAttribute("alt", "Order 19");
+      await expect(page.locator(".grid img").nth(1)).toHaveAttribute("alt", "Order 20");
+    }
+  } finally {
+    for (const id of ids) await page.request.delete("/api/admin/images/" + id);
+  }
 });

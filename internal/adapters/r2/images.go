@@ -21,10 +21,7 @@ func (r *Repository) ListImages(ctx context.Context, p domain.Pagination, color 
 		}
 	}
 	slices.SortFunc(items, func(a, b domain.Image) int {
-		if order := cmp.Compare(b.CreatedAt, a.CreatedAt); order != 0 {
-			return order
-		}
-		return cmp.Compare(b.UUID, a.UUID)
+		return cmp.Compare(b.GalleryOrderKey(), a.GalleryOrderKey())
 	})
 	return paginate(items, p), nil
 }
@@ -86,6 +83,25 @@ func (r *Repository) DeleteImage(ctx context.Context, id string) error {
 		}
 		delete(next.Images, id)
 		next.Garbage = append(next.Garbage, photo.ObjectKey)
+		return nil
+	})
+}
+
+func (r *Repository) MoveImage(ctx context.Context, id, direction string) error {
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+	return r.mutate(ctx, func(next *catalog) error {
+		images := make([]domain.Image, 0, len(next.Images))
+		for _, image := range next.Images {
+			images = append(images, image)
+		}
+		changed, err := domain.MoveImage(images, id, direction)
+		if err != nil {
+			return err
+		}
+		for _, image := range changed {
+			next.Images[image.UUID] = image
+		}
 		return nil
 	})
 }

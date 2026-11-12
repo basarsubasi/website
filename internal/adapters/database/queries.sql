@@ -23,7 +23,7 @@ SELECT payload FROM post_summaries WHERE published=1 ORDER BY created_at DESC,id
 SELECT count(*) FROM content WHERE kind='image' AND (color=sqlc.arg(color) OR sqlc.arg(color) = '');
 
 -- name: ListImages :many
-SELECT payload FROM content WHERE kind='image' AND (color=sqlc.arg(color) OR sqlc.arg(color) = '') ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+SELECT payload FROM content WHERE kind='image' AND (color=sqlc.arg(color) OR sqlc.arg(color) = '') ORDER BY COALESCE(NULLIF(json_extract(payload, '$.order_key'), ''), created_at || '/' || id) DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: InsertContent :exec
 INSERT INTO content(kind,id,slug,color,published,created_at,payload) VALUES(?,?,?,?,?,?,?);
@@ -66,3 +66,6 @@ INSERT INTO post_summaries
 
 -- name: MarkPostSummariesMigrated :exec
 INSERT OR IGNORE INTO settings(key,value) VALUES('post_summaries_v1','1');
+
+-- name: AllImages :many
+SELECT payload FROM content WHERE kind='image';

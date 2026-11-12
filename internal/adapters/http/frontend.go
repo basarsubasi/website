@@ -15,7 +15,7 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 	}
 	// Only application routes receive the SPA fallback; missing assets remain 404s.
 	p := r.URL.Path
-	if p != "/" && p != "/gallery" && p != "/bw-photos" && p != "/color-photos" && p != "/blog" && p != "/admin" && !strings.HasPrefix(p, "/image/") && !strings.HasPrefix(p, "/blog/") {
+	if p != "/" && p != "/photos" && p != "/bw-photos" && p != "/color-photos" && p != "/blog" && p != "/admin" && !strings.HasPrefix(p, "/photo/") && !strings.HasPrefix(p, "/blog/") {
 		http.NotFound(w, r)
 		return
 	}
