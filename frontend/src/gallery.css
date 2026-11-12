@@ -144,17 +144,19 @@ img {
 
 .single-image-page {
   --image-padding: clamp(16px, 3vw, 40px);
+  --image-offset: clamp(12px, 3svh, 32px);
   display: grid;
   place-items: center;
   box-sizing: border-box;
   width: 100%;
   min-height: 100svh;
-  padding: var(--image-padding);
+  padding: var(--image-padding) var(--image-padding)
+    calc(var(--image-padding) + 2 * var(--image-offset));
 }
 
 .single-image-page img {
   max-width: min(100%, 960px);
-  max-height: min(640px, calc(100svh - 2 * var(--image-padding)));
+  max-height: min(640px, calc(100svh - 2 * var(--image-padding) - 2 * var(--image-offset)));
   width: auto;
   height: auto;
   object-fit: contain;
