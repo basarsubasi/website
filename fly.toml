@@ -15,7 +15,7 @@ swap_size_mb = 0
 
 [deploy]
   strategy = 'rolling'
-  wait_timeout = '7m0s'
+  wait_timeout = '1m0s'
 
 [env]
   COOKIE_SECURE = 'true'
@@ -31,7 +31,7 @@ swap_size_mb = 0
 [[mounts]]
   source = 'website_data'
   destination = '/data'
-  initial_size = '2gb'
+  initial_size = '1gb'
   snapshot_retention = 14
 
 [http_service]
@@ -44,7 +44,7 @@ swap_size_mb = 0
   [[http_service.checks]]
     interval = '30s'
     timeout = '5s'
-    grace_period = '5m10s'
+    grace_period = '1m'
     method = 'GET'
     path = '/api/health'
 
