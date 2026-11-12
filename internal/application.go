@@ -28,19 +28,20 @@ import (
 )
 
 type Config struct {
-	DatabasePath   string
-	Address        string
-	FrontendDir    string
-	AdminPassword  string
-	SecureCookies  bool
-	TrustedProxies []netip.Prefix
-	TrustFlyProxy  bool
-	RestoreTimeout time.Duration
-	MaxRequests    int
-	MaxUploads     int
-	MaxConnections int
-	PhotoStorage   *r2.Config
-	BlogStorage    *r2.Config
+	EphemeralDatabase bool
+	DatabasePath      string
+	Address           string
+	FrontendDir       string
+	AdminPassword     string
+	SecureCookies     bool
+	TrustedProxies    []netip.Prefix
+	TrustFlyProxy     bool
+	RestoreTimeout    time.Duration
+	MaxRequests       int
+	MaxUploads        int
+	MaxConnections    int
+	PhotoStorage      *r2.Config
+	BlogStorage       *r2.Config
 }
 
 func (c Config) validate() error {
@@ -100,7 +101,11 @@ func New(cfg Config) (*Application, error) {
 	}
 	startup, cancel := context.WithTimeout(context.Background(), restoreTimeout)
 	defer cancel()
-	repo, err := database.Open(startup, cfg.DatabasePath)
+	open := database.Open
+	if cfg.EphemeralDatabase {
+		open = database.OpenEphemeral
+	}
+	repo, err := open(startup, cfg.DatabasePath)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +114,7 @@ func New(cfg Config) (*Application, error) {
 		repo.Close()
 		return nil, fmt.Errorf("initialize database from R2: %w", err)
 	}
+	repo.RequireBackup(backup)
 	service := usecase.New(repo, objects, blogObjects)
 	handler := httpadapter.New(service, httpadapter.Config{
 		Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir,
@@ -202,7 +208,7 @@ func runFixtures(args []string, remove bool) error {
 		log.Printf("Removed %d seed records from SQLite; R2 cleanup queued", count)
 	} else {
 		count, err = devseed.Seed(ctx, app.Repository, app.Objects)
-		log.Printf("Added %d sample records to SQLite; R2 backups queued", count)
+		log.Printf("Added %d sample records to SQLite; R2 backups synchronized", count)
 	}
 	if err != nil {
 		return err
@@ -274,6 +280,13 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 			return Config{}, fmt.Errorf("RESTORE_TIMEOUT must be a positive duration, for example 5m")
 		}
 		cfg.RestoreTimeout = duration
+	}
+	if raw := get("EPHEMERAL_DATABASE"); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("EPHEMERAL_DATABASE must be a boolean")
+		}
+		cfg.EphemeralDatabase = value
 	}
 	if raw := get("COOKIE_SECURE"); raw != "" {
 		secure, err := strconv.ParseBool(raw)
@@ -380,13 +393,14 @@ func envValue(value string) (string, error) {
 	return "", io.ErrUnexpectedEOF
 }
 
-// startBackups owns the worker lifecycle; reads and edits never wait for R2.
+// startBackups retries failed writes and performs cleanup; successful writes
+// already wait for R2 in the repository.
 func (app *Application) startBackups(parent context.Context) func() {
 	ctx, cancel := context.WithCancel(parent)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		var maintenance time.Time
 		for {

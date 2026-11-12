@@ -151,6 +151,7 @@ function editPost(value: Post | null) {
 async function savePhoto(value: PhotoInput, file: File | null) {
   busy.value = true;
   error.value = "";
+  notice.value = "";
   try {
     if (photo.value) {
       await api("/admin/images/" + photo.value.uuid, send("PUT", value));
@@ -190,6 +191,7 @@ async function movePhoto(item: Photo, index: number, direction: "up" | "down") {
 async function savePost(value: PostInput) {
   busy.value = true;
   error.value = "";
+  notice.value = "";
   try {
     await api(
       "/admin/posts" + (post.value ? "/" + post.value.id : ""),

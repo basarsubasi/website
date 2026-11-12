@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the production image using disposable containers, volumes, and S3.
+"""Exercise the production image using disposable containers and S3.
 
 Requires Docker and Python 3; no cloud credentials or running app are used.
 """
@@ -64,7 +64,6 @@ def main():
     name = "website-smoke-" + uuid.uuid4().hex[:10]
     image, fixture_image = name + ":app", name + ":fixture"
     app, restored, storage = name + "-app", name + "-restored", name + "-s3"
-    volumes = [name + "-data", name + "-restore"]
     containers = [app, restored, storage]
     try:
         print("Building production and S3 fixture images…", flush=True)
@@ -73,9 +72,8 @@ def main():
         config = json.loads(docker("image", "inspect", image).stdout)[0]["Config"]
         assert config["User"] == "10001:10001", config["User"]
         assert config["Entrypoint"] == ["/usr/local/bin/website"]
+        assert not config.get("Volumes"), "SQLite must use the container root filesystem"
         docker("network", "create", name)
-        for volume in volumes:
-            docker("volume", "create", volume)
         docker("run", "-d", "--name", storage, "--network", name, "--network-alias", "fixture",
                "-p", "127.0.0.1::9000", fixture_image)
 
@@ -84,13 +82,12 @@ def main():
 
         s3 = address(storage, 9000)
 
-        def start(container, volume):
+        def start(container):
             docker("run", "-d", "--name", container, "--network", name,
-                   "--read-only", "--tmpfs", "/tmp", "--cap-drop=ALL",
+                   "--cap-drop=ALL",
                    "--security-opt", "no-new-privileges", "-p", "127.0.0.1::8080",
-                   "-v", f"{volume}:/data",
                    "-e", "HTTP_ADDR=:8080", "-e", "DATABASE_PATH=/data/website.db",
-                   "-e", "FRONTEND_DIR=/app/frontend",
+                   "-e", "FRONTEND_DIR=/app/frontend", "-e", "EPHEMERAL_DATABASE=true",
                    "-e", f"ADMIN_PASSWORD={PASSWORD}", "-e", "R2_ENDPOINT=http://fixture:9000",
                    "-e", "R2_PHOTOS_BUCKET=photos", "-e", "R2_BLOG_BUCKET=blog", "-e", "R2_ACCESS_KEY_ID=test", "-e", "R2_SECRET_ACCESS_KEY=test",
                    "-e", f"R2_PHOTOS_PUBLIC_URL={s3}/photos", "-e", f"R2_BLOG_PUBLIC_URL={s3}/blog", "-e", "COOKIE_SECURE=true",
@@ -99,7 +96,7 @@ def main():
             wait_for(lambda: request(base, "/api/health")[0] == 200, "healthy application")
             return base
 
-        base = start(app, volumes[0])
+        base = start(app)
         assert "10001" in docker("top", app, "-eo", "pid,uid").stdout.splitlines()[1:][0]
         assert docker("exec", app, "/bin/sh", "-c", "true", check=False).returncode != 0
         assert b"<html" in request(base, "/")[2]
@@ -121,27 +118,23 @@ def main():
         assert status == 201
         photo = json.loads(body)["data"]
 
-        def backed_up():
-            catalog = json.loads(request(s3, "/test/catalog.json")[2])
-            return post["id"] in catalog["posts"] and photo["uuid"] in catalog["images"]
-
-        wait_for(backed_up, "background worker to back up the post and image")
-        assert request(s3, "/test/" + photo["object_key"])[2] == png()
+        # API success must mean the records are already recoverable without a
+        # worker delay or a shared volume.
+        assert request(s3, "/photos/" + photo["object_key"])[2] == png()
         docker("stop", "--time", "15", app)
         assert docker("inspect", "--format", "{{.State.ExitCode}}", app).stdout.strip() == "0"
-        base = start(restored, volumes[1])
+        base = start(restored)
         assert json.loads(request(base, "/api/posts/persistent")[2])["data"] == post
         assert json.loads(request(base, "/api/images/" + photo["uuid"])[2])["data"] == photo
-        docker("stop", storage)
         docker("restart", restored)
         base = address(restored, 8080)
-        wait_for(lambda: request(base, "/api/health")[0] == 200, "restart without R2")
+        wait_for(lambda: request(base, "/api/health")[0] == 200, "fresh restore on restart")
         assert json.loads(request(base, "/api/posts/persistent")[2])["data"] == post
         assert json.loads(request(base, "/api/images/" + photo["uuid"])[2])["data"] == photo
         docker("stop", "--time", "15", restored)
         assert docker("inspect", "--format", "{{.State.ExitCode}}", restored).stdout.strip() == "0"
-        print("PASS: non-root/shell-free image, fresh volume, UI, secure login, photo upload, "
-              "background backup, fresh-DB restore, offline restart, graceful shutdown")
+        print("PASS: non-root/shell-free image, no database volumes, UI, secure login, photo upload, "
+              "synchronous backup, fresh-DB restore, cold restart, graceful shutdown")
     except BaseException:
         for container in containers:
             logs = docker("logs", container, check=False)
@@ -151,8 +144,6 @@ def main():
     finally:
         for container in containers:
             docker("rm", "-f", "-v", container, check=False)
-        for volume in volumes:
-            docker("volume", "rm", volume, check=False)
         docker("network", "rm", name, check=False)
         docker("image", "rm", image, fixture_image, check=False)
 

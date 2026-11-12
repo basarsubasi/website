@@ -29,7 +29,7 @@ type PhotoStorage interface {
 	Delete(context.Context, string) error
 }
 
-// Backup is an asynchronous mirror; public reads never use it.
+// Backup persists records in R2; public reads use the local SQLite cache.
 type Backup interface {
 	LoadSnapshot(context.Context) (domain.Snapshot, error)
 	SaveImage(context.Context, domain.Image) error

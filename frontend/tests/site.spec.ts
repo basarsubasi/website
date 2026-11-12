@@ -417,3 +417,79 @@ for (const kind of ["photo", "blog"] as const) {
     })).toBe(true);
   });
 }
+
+for (const kind of ["photo", "post"] as const) {
+  for (const operation of ["create", "edit"] as const) {
+    test(`${operation} ${kind} shows success only after save confirmation`, async ({ page }) => {
+      await login(page);
+      const collection = kind === "photo" ? "images" : "posts";
+      let id = "";
+      const name = `R2 confirmation ${kind} ${operation}`;
+      try {
+        if (operation === "edit") {
+          const response = kind === "photo"
+            ? await page.request.post("/api/admin/images", { multipart: {
+                photo: { name: "test.png", mimeType: "image/png", buffer: png },
+                metadata: JSON.stringify({ name, color: "bw" }),
+              } })
+            : await page.request.post("/api/admin/posts", { data: {
+                title: name, slug: "r2-confirmation-post", body: "Original body", published: 0,
+              } });
+          expect(response.ok()).toBeTruthy();
+          const record = (await response.json()).data;
+          id = record.uuid ?? record.id;
+          await page.reload();
+        }
+        if (kind === "post") await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
+        if (operation === "edit") {
+          await page.getByRole("listitem").filter({ hasText: name }).getByRole("button", { name: "Düzenle", exact: true }).click();
+        } else {
+          await page.getByRole("button", { name: kind === "photo" ? "Fotoğraf ekle" : "Yeni yazı", exact: true }).click();
+          if (kind === "photo") await page.getByLabel("Fotoğraf dosyası").setInputFiles({ name: "test.png", mimeType: "image/png", buffer: png });
+        }
+        await page.getByLabel(kind === "photo" ? "Ad / alternatif metin" : "Başlık", { exact: true }).fill(name + " changed");
+        if (kind === "post") await page.getByLabel("İçerik", { exact: true }).fill("Changed body");
+        const endpoint = "/api/admin/" + collection + (id ? "/" + id : "");
+        const save = page.getByRole("button", { name: kind === "photo" ? "Fotoğrafı kaydet" : "Yazıyı kaydet", exact: true });
+        const success = page.getByText(kind === "photo" ? "Fotoğraf kaydedildi." : "Yazı kaydedildi.", { exact: true });
+        for (const succeeds of [false, true]) {
+          let release!: () => void;
+          let entered!: () => void;
+          const gate = new Promise<void>(resolve => { release = resolve; });
+          const requestStarted = new Promise<void>(resolve => { entered = resolve; });
+          await page.route("**" + endpoint, async route => {
+            entered();
+            await gate;
+            if (!succeeds) {
+              await route.fulfill({ status: 503, json: { error: "Write outcome is uncertain; reload before retrying" } });
+            } else {
+              const response = await route.fetch();
+              expect(response.ok()).toBeTruthy();
+              const record = (await response.json()).data;
+              id = record.uuid ?? record.id;
+              await route.fulfill({ response });
+            }
+          });
+          await save.click();
+          await requestStarted;
+          try {
+            await expect(save).toBeVisible();
+            await expect(save).toBeDisabled();
+            await expect(success).toHaveCount(0);
+          } finally { release(); }
+          if (succeeds) {
+            await expect(success).toBeVisible();
+            await expect(save).toHaveCount(0);
+          } else {
+            await expect(page.getByRole("alert")).toContainText("doğrulanamadı");
+            await expect(save).toBeEnabled();
+            await expect(success).toHaveCount(0);
+          }
+          await page.unroute("**" + endpoint);
+        }
+      } finally {
+        if (id) await page.request.delete("/api/admin/" + collection + "/" + id);
+      }
+    });
+  }
+}

@@ -13,6 +13,7 @@ const messages: Record<string, string> = {
   "Write outcome is uncertain; reload before retrying": "İşlemin tamamlanıp tamamlanmadığı doğrulanamadı. Tekrar denemeden önce sayfayı yenileyin.",
   "Operation failed": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
   "could not upload photo in object storage": "Fotoğraf depolama hizmetine yüklenemedi.",
+  "could not synchronize pending changes in object storage": "Bekleyen değişiklikler depolama hizmetine kaydedilemedi. Lütfen biraz sonra tekrar deneyin.",
   "could not write post in object storage": "Yazı depolama hizmetine kaydedilemedi.",
   "Excerpt must be at most 2000 characters": "Özet en fazla 2000 karakter olabilir.",
   "Provide a title, body, lowercase hyphenated slug, and published value 0 or 1": "Başlık ve içerik girin, yayın durumunu seçin. Kısa bağlantıda küçük Latin harfleri, rakamlar ve aralarında tire kullanın.",

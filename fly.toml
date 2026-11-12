@@ -20,6 +20,7 @@ swap_size_mb = 0
 [env]
   COOKIE_SECURE = 'true'
   DATABASE_PATH = '/data/website.db'
+  EPHEMERAL_DATABASE = 'true'
   FRONTEND_DIR = '/app/frontend'
   HTTP_ADDR = '0.0.0.0:8080'
   HTTP_MAX_CONNECTIONS = '128'
@@ -27,12 +28,6 @@ swap_size_mb = 0
   HTTP_MAX_UPLOADS = '2'
   RESTORE_TIMEOUT = '5m'
   TRUST_FLY_PROXY = 'true'
-
-[[mounts]]
-  source = 'website_data'
-  destination = '/data'
-  initial_size = '1gb'
-  snapshot_retention = 14
 
 [http_service]
   internal_port = 8080

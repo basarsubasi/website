@@ -20,8 +20,11 @@ import (
 const timestampLayout = "2006-01-02T15:04:05.000000000Z"
 
 type Repository struct {
-	db   *sql.DB
-	path string
+	db           *sql.DB
+	path         string
+	backup       usecase.Backup
+	writes       chan struct{}
+	ephemeralDir string
 }
 
 var _ usecase.Repository = (*Repository)(nil)
@@ -48,7 +51,7 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	repo := &Repository{db: db, path: absolute}
+	repo := &Repository{db: db, path: absolute, writes: make(chan struct{}, 1)}
 	_, err = db.ExecContext(ctx, schemaSQL)
 	if err != nil {
 		db.Close()
@@ -61,7 +64,35 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 	return repo, nil
 }
 
-func (r *Repository) Close() error { return r.db.Close() }
+// OpenEphemeral creates a fresh database for this process without touching an
+// existing database or volume. A cold start always restores from R2.
+func OpenEphemeral(ctx context.Context, path string) (*Repository, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return nil, err
+	}
+	dir, err := os.MkdirTemp(filepath.Dir(path), "website-")
+	if err != nil {
+		return nil, err
+	}
+	repo, err := Open(ctx, filepath.Join(dir, filepath.Base(path)))
+	if err != nil {
+		os.RemoveAll(dir)
+		return nil, err
+	}
+	repo.ephemeralDir = dir
+	return repo, nil
+}
+
+// RequireBackup must be configured before serving requests.
+func (r *Repository) RequireBackup(backup usecase.Backup) { r.backup = backup }
+
+func (r *Repository) Close() error {
+	err := r.db.Close()
+	if r.ephemeralDir != "" {
+		err = errors.Join(err, os.RemoveAll(r.ephemeralDir))
+	}
+	return err
+}
 
 func (r *Repository) Ping(ctx context.Context) error { return r.db.PingContext(ctx) }
 

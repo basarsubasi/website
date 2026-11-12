@@ -34,6 +34,7 @@ func appError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrConflict):
 		fail(w, http.StatusConflict, "Content changed or identifier already exists; reload and retry")
 	case errors.Is(err, domain.ErrUncertain):
+		log.Printf("write awaiting R2 confirmation: %v", err)
 		fail(w, http.StatusServiceUnavailable, "Write outcome is uncertain; reload before retrying")
 	case errors.Is(err, domain.ErrBusy):
 		w.Header().Set("Retry-After", "1")

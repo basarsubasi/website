@@ -1,13 +1,16 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/basarsubasi/website/internal/domain"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -200,5 +203,72 @@ func TestConcurrencyLimitConfiguration(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestEphemeralApplicationRestoresAcknowledgedWrites(t *testing.T) {
+	ctx := context.Background()
+	photos, blog := testutil.NewObjects(), testutil.NewObjects()
+	endpoint := testutil.S3BucketsServer(map[string]*testutil.Objects{"website": photos, "blog": blog})
+	defer endpoint.Close()
+	env := validEnv()
+	env["R2_ENDPOINT"] = endpoint.URL
+	env["DATABASE_PATH"] = filepath.Join(t.TempDir(), "website.db")
+	env["EPHEMERAL_DATABASE"] = "true"
+	cfg, err := loadConfig([]string{"-env", ""}, lookup(env))
+	if err != nil || !cfg.EphemeralDatabase {
+		t.Fatal(cfg, err)
+	}
+	app, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Repository.Close()
+	post, err := app.Repository.CreatePost(ctx, domain.Post{ID: "post", Slug: "post", Body: "draft"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	png, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC")
+	first, err := app.Service.UploadImage(ctx, domain.PhotoInput{Name: "first", Color: "bw"}, bytes.NewReader(png), int64(len(png)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := app.Service.UploadImage(ctx, domain.PhotoInput{Name: "second", Color: "bw"}, bytes.NewReader(png), int64(len(png)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Service.MoveImage(ctx, first.UUID, "up"); err != nil {
+		t.Fatal(err)
+	}
+	// Reopen with the same configuration while the old SQLite still exists:
+	// ephemeral mode must restore from R2, not reuse a local file.
+	restored, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Repository.Close()
+	if got, err := restored.Repository.GetPostByID(ctx, post.ID); err != nil || got != post {
+		t.Fatal(got, err)
+	}
+	page, err := restored.Repository.ListImages(ctx, domain.Pagination{Page: 1, Limit: 9}, "")
+	if err != nil || len(page.Data) != 2 || page.Data[0].UUID != first.UUID {
+		t.Fatal(page, err)
+	}
+	if err := app.Service.DeleteImage(ctx, second.UUID); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Service.DeletePost(ctx, post.ID); err != nil {
+		t.Fatal(err)
+	}
+	again, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer again.Repository.Close()
+	if _, err := again.Repository.GetImage(ctx, second.UUID); err == nil {
+		t.Fatal("deleted photo resurrected")
+	}
+	if _, err := again.Repository.GetPostByID(ctx, post.ID); err == nil {
+		t.Fatal("deleted post resurrected")
 	}
 }

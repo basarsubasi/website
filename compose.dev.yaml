@@ -14,6 +14,7 @@ services:
       HTTP_MAX_UPLOADS: ${HTTP_MAX_UPLOADS:-2}
       HTTP_MAX_CONNECTIONS: ${HTTP_MAX_CONNECTIONS:-128}
       DATABASE_PATH: /data/website.db
+      EPHEMERAL_DATABASE: "true"
       RESTORE_TIMEOUT: ${RESTORE_TIMEOUT:-5m}
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_ENDPOINT: ${R2_ENDPOINT:-}
@@ -27,7 +28,6 @@ services:
       - "0.0.0.0:8080:8080"
     volumes:
       - .:/app
-      - dev-data:/data
       - go-modules:/go/pkg/mod
       - go-build:/root/.cache/go-build
       - dev-build:/app/.tmp
@@ -58,7 +58,6 @@ services:
         condition: service_healthy
 
 volumes:
-  dev-data:
   go-modules:
   go-build:
   dev-build:

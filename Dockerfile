@@ -16,7 +16,7 @@ COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 RUN go build -mod=vendor -trimpath -ldflags="-s -w" -o /out/website ./cmd/website
 
-# Keep the existing service UID so previously created SQLite files stay writable.
+# Writable root-filesystem directory for the non-root SQLite cache.
 RUN mkdir -p /out/data && chown 10001:10001 /out/data
 
 FROM gcr.io/distroless/static-debian13:nonroot AS production
@@ -27,6 +27,5 @@ COPY --from=frontend /src/frontend/dist/ ./frontend/
 
 USER 10001:10001
 EXPOSE 8080
-VOLUME ["/data"]
 ENTRYPOINT ["/usr/local/bin/website"]
 CMD ["-env", ""]
