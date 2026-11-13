@@ -24756,6 +24756,7 @@ func X_Exit(tls *TLS, ec int32) {
 	if __ccgo_strace {
 		trc("tls=%v ec=%v, (%v:)", tls, ec, origin(2))
 	}
+	___exit_unwind(tls, ec)
 	X__syscall1(tls, int64(SYS_exit_group), int64(ec))
 	for {
 		X__syscall1(tls, int64(SYS_exit), int64(ec))
@@ -24808,6 +24809,9 @@ func Xat_quick_exit(tls *TLS, __ccgo_fp_func uintptr) (r1 int32) {
 	var r, v1 int32
 	_, _ = r, v1
 	r = 0
+	if ___at_quick_exit_unwind(tls, __ccgo_fp_func) != 0 {
+		return 0
+	}
 	___lock(tls, uintptr(unsafe.Pointer(&_lock)))
 	if _count == int32(32) {
 		r = -int32(1)
@@ -24827,6 +24831,7 @@ func Xquick_exit(tls *TLS, code int32) {
 	if __ccgo_strace {
 		trc("tls=%v code=%v, (%v:)", tls, code, origin(2))
 	}
+	___quick_exit_unwind(tls, code)
 	X__funcs_on_quick_exit(tls)
 	X_Exit(tls, code)
 }
@@ -28398,6 +28403,13 @@ type Tepoll_event = struct {
 	Fevents Tuint32_t
 	Fdata   Tepoll_data_t
 }
+
+/* modernc.org/libc: on x86_64 the kernel's struct epoll_event is packed, 12
+ * bytes with data at offset 4, and so is the one sys/epoll.h declares. cc/v4,
+ * which compiles this libc and the C code calling it, ignores
+ * __attribute__((__packed__)), and its struct epoll_event is 16 bytes with
+ * data at offset 8. epoll_ctl and epoll_pwait therefore convert between the
+ * two layouts, for as long as they differ. */
 
 func Xepoll_create(tls *TLS, size int32) (r int32) {
 	if __ccgo_strace {
@@ -104333,7 +104345,7 @@ func _mul(tls *TLS, hi unsafe.Pointer, lo unsafe.Pointer, x Tuint64_t, y Tuint64
 	*(*Tuint64_t)(hi) = t3 + t2>>Int32FromInt32(32) + BoolUint64(t1 > *(*Tuint64_t)(lo))
 }
 
-func Xfma(tls *TLS, x float64, y float64, z float64) (r1 float64) {
+func ___musl_fma(tls *TLS, x float64, y float64, z float64) (r1 float64) {
 	if __ccgo_strace {
 		trc("tls=%v x=%v y=%v z=%v, (%v:)", tls, x, y, z, origin(2))
 		defer func() { trc("-> %v", r1) }()
@@ -111391,7 +111403,7 @@ func _mul64(tls *TLS, a Tuint64_t, b Tuint64_t) (r Tuint64_t) {
 	return ahi*bhi + ahi*blo>>int32(32) + alo*bhi>>int32(32)
 }
 
-func Xsqrt(tls *TLS, x1 float64) (r1 float64) {
+func ___musl_sqrt(tls *TLS, x1 float64) (r1 float64) {
 	if __ccgo_strace {
 		trc("tls=%v x1=%v, (%v:)", tls, x1, origin(2))
 		defer func() { trc("-> %v", r1) }()
@@ -111543,7 +111555,7 @@ func _mul321(tls *TLS, a Tuint32_t, b Tuint32_t) (r Tuint32_t) {
 
 /* see sqrt.c for more detailed comments.  */
 
-func Xsqrtf(tls *TLS, x1 float32) (r1 float32) {
+func ___musl_sqrtf(tls *TLS, x1 float32) (r1 float32) {
 	if __ccgo_strace {
 		trc("tls=%v x1=%v, (%v:)", tls, x1, origin(2))
 		defer func() { trc("-> %v", r1) }()
