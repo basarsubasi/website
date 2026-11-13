@@ -6,12 +6,14 @@ import type { Photo, ItemResponse } from "./types";
 const route = useRoute(),
   image = ref<Photo | null>(null),
   error = ref("");
+const imageLoaded = ref(false);
 let request = 0;
 watch(
   () => route.params.uuid,
   async (uuid) => {
     const id = ++request;
     image.value = null;
+    imageLoaded.value = false;
     error.value = "";
     try {
       const data = await api<ItemResponse<Photo>>(
@@ -28,6 +30,6 @@ watch(
 <template>
   <p v-if="error" class="notice" role="alert">{{ error }}</p>
   <div v-else-if="image" class="single-image-page">
-    <img :src="image.image_url" :alt="image.name || 'Fotoğraf'" :width="image.width || undefined" :height="image.height || undefined" loading="eager" fetchpriority="high" decoding="async" />
+    <img class="public-photo" :class="{ 'is-loaded': imageLoaded }" @load="imageLoaded = true" :src="image.image_url" :alt="image.name || 'Fotoğraf'" :width="image.width || undefined" :height="image.height || undefined" loading="eager" fetchpriority="high" decoding="async" />
   </div>
 </template>

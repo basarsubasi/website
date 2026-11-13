@@ -493,3 +493,31 @@ for (const kind of ["photo", "post"] as const) {
     });
   }
 }
+
+test("home shows photos and unloaded images never show fallback names", async ({ page }) => {
+  const photo = { uuid: "pending", image_url: "https://images.example.com/pending.png", name: "Name must not flash", width: 1200, height: 800, color: "bw" };
+  await page.route("**/api/images?*", route => route.fulfill({ json: { data: [photo], total: 1 } }));
+  await page.route("**/api/images/pending", route => route.fulfill({ json: { data: photo } }));
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route(photo.image_url, async route => {
+    await gate;
+    await route.fulfill({ contentType: "image/png", body: png });
+  });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const thumbnail = page.locator(".grid img");
+  await expect(thumbnail).toHaveCount(1);
+  await expect(thumbnail).toHaveAttribute("alt", photo.name);
+  await expect(thumbnail).toHaveCSS("opacity", "0");
+  release();
+  await expect(thumbnail).toHaveCSS("opacity", "1");
+  // Failed downloads remain blank, including on the single-photo page.
+  await page.unroute(photo.image_url);
+  await page.route(photo.image_url, route => route.abort());
+  await page.goto("/photo/pending");
+  await expect(page.locator(".single-image-page img")).toHaveCSS("opacity", "0");
+  await page.goto("/photos");
+  await expect(thumbnail).toHaveCSS("opacity", "0");
+  await page.goto("/blog");
+  await expect(page.locator(".blog")).toBeVisible();
+});

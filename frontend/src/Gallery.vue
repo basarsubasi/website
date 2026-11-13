@@ -8,6 +8,7 @@ const route = useRoute(),
   total = ref(0),
   loading = ref(false),
   error = ref("");
+const loadedImages = ref(new Set<string>());
 let request = 0;
 const page = computed(() =>
   Math.max(1, Number.parseInt(String(route.query.page)) || 1),
@@ -19,6 +20,7 @@ watch(
     loading.value = true;
     error.value = "";
     images.value = [];
+    loadedImages.value.clear();
     const color =
       route.path === "/bw-photos"
         ? "bw"
@@ -54,6 +56,9 @@ watch(
           class="grid-item"
           ><img
             :src="image.image_url"
+            class="public-photo"
+            :class="{ 'is-loaded': loadedImages.has(image.uuid) }"
+            @load="loadedImages.add(image.uuid)"
             :alt="image.name || 'Fotoğraf'"
             :width="image.width || undefined"
             :height="image.height || undefined"

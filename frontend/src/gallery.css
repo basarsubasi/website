@@ -161,3 +161,8 @@ img {
   height: auto;
   object-fit: contain;
 }
+
+
+/* Keep image slots and accessible names, but hide fallback text until loaded. */
+.public-photo { opacity: 0; }
+.public-photo.is-loaded { opacity: 1; }
