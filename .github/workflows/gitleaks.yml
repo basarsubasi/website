@@ -6,7 +6,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths-ignore: ["vendor/**"]
   pull_request:
+    paths-ignore: ["vendor/**"]
 
 permissions:
   contents: read
