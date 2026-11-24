@@ -44,6 +44,6 @@ swap_size_mb = 0
     path = '/api/health'
 
 [[vm]]
-  memory = '256mb'
-  cpus = 1
-  memory_mb = 256
+  memory = '512mb'
+  cpus = 2
+  memory_mb = 512

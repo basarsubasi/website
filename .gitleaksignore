@@ -1,0 +1,35 @@
+# Documenting throw-away keys / test tokens in vendored dependencies (vendor/modernc.org/sqlite)
+# Reported in GitHub Actions run 45236862021:
+# Rule: generic-api-key
+# Commit: 5e8f401df8317516aae1750a300ab7108fcd8992
+# File: vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go
+
+# Commit-based fingerprints (full commit SHA)
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:1213
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:1295
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:9351
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:30511
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:32779
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:76573
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:78198
+5e8f401df8317516aae1750a300ab7108fcd8992:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:86633
+
+# Short commit SHA fingerprints
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:1213
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:1295
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:9351
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:30511
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:32779
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:76573
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:78198
+5e8f401:vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:86633
+
+# Path-based fingerprints (working tree and directory scans)
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:1213
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:1295
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:9351
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:30511
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:32779
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:76573
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:78198
+vendor/modernc.org/sqlite/lib/sqlite_g_00000000000c0000.go:generic-api-key:86633
