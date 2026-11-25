@@ -42,6 +42,9 @@ func (u *UseCase) SavePost(ctx context.Context, id string, p article.PostInput) 
 	if !slugPattern.MatchString(p.Slug) || len(p.Slug) > 200 || p.Title == emptyString || len(p.Title) > 300 || strings.TrimSpace(p.Body) == emptyString || (p.Published != 0 && p.Published != 1) {
 		return article.Post{}, domain.Invalid(invalidPostMessage)
 	}
+	if err := article.ValidateImageSources(p.Body, u.imageOrigin); err != nil {
+		return article.Post{}, err
+	}
 	if id != emptyString {
 		return u.repo.UpdatePost(ctx, id, p)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
+	"github.com/basarsubasi/website/internal/shared/media"
 )
 
 const (
@@ -30,7 +31,7 @@ func (r *postWriter) CreatePost(_ context.Context, p article.Post) (article.Post
 }
 func TestExcerptLimitCountsCharactersBeforeSaving(t *testing.T) {
 	repo := &postWriter{}
-	service := New(repo)
+	service := New(repo, media.Origin{})
 	input := article.PostInput{Slug: postSlug, Title: postTitle, Body: postBody, Excerpt: strings.Repeat(excerptCharacter, MaxExcerptLength)}
 	if _, err := service.SavePost(context.Background(), newPostID, input); err != nil || !repo.saved {
 		t.Fatal(validExcerptFailure, err)

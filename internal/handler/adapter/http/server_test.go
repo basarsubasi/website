@@ -25,6 +25,7 @@ import (
 	"github.com/basarsubasi/website/internal/platform/database"
 	"github.com/basarsubasi/website/internal/platform/r2"
 	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/media"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -105,6 +106,8 @@ const (
 	serverTestAdminPath = "/admin"
 	missingAssetPath    = "/missing.js"
 	missingAPIPath      = "/api/missing"
+	adminAPIBasePath    = "/api/admin"
+	missingAdminAPIPath = "/api/admin/missing"
 
 	localSlug               = "local"
 	localTitle              = "Local"
@@ -164,7 +167,19 @@ func (c *client) restart() {
 	if err := repo.Initialize(context.Background(), c.backup.LoadSnapshot); err != nil {
 		c.t.Fatal(err)
 	}
-	c.handler = New(gallery.New(gallerysqlite.New(repo), c.objects), blog.New(blogsqlite.New(repo), c.objects), repo.Ping, Config{Password: testPassword, FrontendDir: c.dir})
+	c.configureHandler(Config{Password: testPassword, FrontendDir: c.dir})
+}
+
+func (c *client) configureHandler(cfg Config) {
+	c.t.Helper()
+	origin, err := media.ParseOrigin(bucketBaseURL)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	cfg.PhotoOrigin, cfg.BlogOrigin = origin, origin
+	galleryModule := gallery.New(gallerysqlite.New(c.repo), c.objects)
+	blogModule := blog.New(blogsqlite.New(c.repo), c.objects, origin)
+	c.handler = New(galleryModule, blogModule, c.repo.Ping, cfg)
 }
 func (c *client) do(req *http.Request, status int) *httptest.ResponseRecorder {
 	c.t.Helper()
@@ -318,6 +333,17 @@ func TestBlogAPIAndDraftVisibility(t *testing.T) {
 	c.request(serverTestPostMethod, logoutPath, nil, 204)
 	c.request(serverTestGetMethod, serverTestAdminPostsPath, nil, 401)
 }
+func TestAdminNamespaceRequiresSessionBeforeRouting(t *testing.T) {
+	c := setup(t)
+	for _, path := range []string{adminAPIBasePath, missingAdminAPIPath} {
+		c.request(http.MethodGet, path, nil, http.StatusUnauthorized)
+	}
+	c.login()
+	for _, path := range []string{adminAPIBasePath, missingAdminAPIPath} {
+		c.request(http.MethodGet, path, nil, http.StatusNotFound)
+	}
+}
+
 func TestValidationAndCrossOrigin(t *testing.T) {
 	c := setup(t)
 	c.request(serverTestPostMethod, serverTestLoginPath, map[string]string{passwordField: wrongPassword}, 401)

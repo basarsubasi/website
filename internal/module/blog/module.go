@@ -4,6 +4,7 @@ package blog
 import (
 	"github.com/basarsubasi/website/internal/module/blog/usecase/images"
 	"github.com/basarsubasi/website/internal/module/blog/usecase/posts"
+	"github.com/basarsubasi/website/internal/shared/media"
 )
 
 type Module struct {
@@ -11,6 +12,6 @@ type Module struct {
 	Images *images.UseCase
 }
 
-func New(repo posts.Repository, storage images.Storage) *Module {
-	return &Module{UseCase: posts.New(repo), Images: images.New(storage)}
+func New(repo posts.Repository, storage images.Storage, imageOrigin media.Origin) *Module {
+	return &Module{UseCase: posts.New(repo, imageOrigin), Images: images.New(storage)}
 }

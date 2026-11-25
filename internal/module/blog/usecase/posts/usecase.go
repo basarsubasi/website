@@ -5,6 +5,7 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/media"
 )
 
 type Repository interface {
@@ -16,9 +17,10 @@ type Repository interface {
 }
 
 type UseCase struct {
-	repo Repository
+	repo        Repository
+	imageOrigin media.Origin
 }
 
-func New(repo Repository) *UseCase {
-	return &UseCase{repo: repo}
+func New(repo Repository, imageOrigin media.Origin) *UseCase {
+	return &UseCase{repo: repo, imageOrigin: imageOrigin}
 }

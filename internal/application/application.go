@@ -197,8 +197,9 @@ func New(cfg Config) (*Application, error) {
 	}
 	repo.RequireBackup(backup)
 	galleryModule := gallery.New(gallerysqlite.New(repo), objects)
-	blogModule := blog.New(blogsqlite.New(repo), blogObjects)
+	blogModule := blog.New(blogsqlite.New(repo), blogObjects, blogObjects.PublicOrigin())
 	handler := httpadapter.New(galleryModule, blogModule, repo.Ping, httpadapter.Config{
+		PhotoOrigin: objects.PublicOrigin(), BlogOrigin: blogObjects.PublicOrigin(),
 		Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir,
 		SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy,
 		MaxRequests: cfg.MaxRequests, MaxUploads: cfg.MaxUploads,

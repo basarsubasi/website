@@ -18,6 +18,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/media"
 )
 
 const (
@@ -57,9 +58,10 @@ type Config struct {
 }
 
 type R2 struct {
-	client    *s3.Client
-	bucket    string
-	publicURL string
+	client       *s3.Client
+	bucket       string
+	publicURL    string
+	publicOrigin media.Origin
 }
 
 // New creates an S3 client scoped to one bucket.
@@ -74,6 +76,10 @@ func New(cfg Config) (*R2, error) {
 			return nil, fmt.Errorf(invalidURLFormat, name)
 		}
 	}
+	origin, err := media.ParseOrigin(cfg.PublicURL)
+	if err != nil {
+		return nil, fmt.Errorf(invalidURLFormat, publicURLLabel)
+	}
 	client := s3.NewFromConfig(aws.Config{
 		Region:      autoRegion,
 		Credentials: credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, r2EmptyString),
@@ -82,8 +88,10 @@ func New(cfg Config) (*R2, error) {
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
 		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,
 	}, func(o *s3.Options) { o.BaseEndpoint = aws.String(cfg.Endpoint); o.UsePathStyle = true })
-	return &R2{client: client, bucket: cfg.Bucket, publicURL: strings.TrimRight(cfg.PublicURL, pathSeparator)}, nil
+	return &R2{client: client, bucket: cfg.Bucket, publicOrigin: origin, publicURL: strings.TrimRight(cfg.PublicURL, pathSeparator)}, nil
 }
+
+func (r *R2) PublicOrigin() media.Origin { return r.publicOrigin }
 
 // Image uploads have unique keys and their bytes never change. Metadata edits
 // must preserve this policy; catalogs and post backups must not inherit it.

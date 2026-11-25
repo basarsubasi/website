@@ -7,11 +7,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/basarsubasi/website/internal/module/blog"
-	blogsqlite "github.com/basarsubasi/website/internal/module/blog/adapter/sqlite"
-	"github.com/basarsubasi/website/internal/module/gallery"
-	gallerysqlite "github.com/basarsubasi/website/internal/module/gallery/adapter/sqlite"
 )
 
 const (
@@ -130,7 +125,7 @@ func (b *blockedBody) Close() error { return nil }
 
 func TestUploadLimitBeforeBodyReadAndGeneralRequestLimit(t *testing.T) {
 	c := setup(t)
-	c.handler = New(gallery.New(gallerysqlite.New(c.repo), c.objects), blog.New(blogsqlite.New(c.repo), c.objects), c.repo.Ping, Config{Password: testPassword, FrontendDir: c.dir, MaxRequests: 2, MaxUploads: 1})
+	c.configureHandler(Config{Password: testPassword, FrontendDir: c.dir, MaxRequests: 2, MaxUploads: 1})
 	c.login()
 	body := &blockedBody{entered: make(chan struct{}), release: make(chan struct{})}
 	var once sync.Once

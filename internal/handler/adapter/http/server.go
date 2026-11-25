@@ -10,6 +10,7 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/blog"
 	"github.com/basarsubasi/website/internal/module/gallery"
+	"github.com/basarsubasi/website/internal/shared/media"
 )
 
 const (
@@ -25,6 +26,8 @@ const (
 	getImageRoute            = "GET /api/images/{uuid}"
 	listPostsRoute           = "GET /api/posts"
 	getPostRoute             = "GET /api/posts/{slug}"
+	adminAPIPath             = "/api/admin"
+	adminAPIPrefix           = adminAPIPath + "/"
 	listAdminPostsRoute      = "GET /api/admin/posts"
 	uploadPhotoRoute         = "POST /api/admin/images"
 	updatePhotoRoute         = "PUT /api/admin/images/{uuid}"
@@ -52,13 +55,14 @@ const (
 )
 
 type Config struct {
-	Password       string
-	FrontendDir    string
-	SecureCookies  bool
-	TrustedProxies []netip.Prefix
-	TrustFlyProxy  bool
-	MaxRequests    int
-	MaxUploads     int
+	PhotoOrigin, BlogOrigin media.Origin
+	Password                string
+	FrontendDir             string
+	SecureCookies           bool
+	TrustedProxies          []netip.Prefix
+	TrustFlyProxy           bool
+	MaxRequests             int
+	MaxUploads              int
 }
 
 type Server struct {
@@ -95,17 +99,23 @@ func New(gallery *gallery.Module, blog *blog.Module, health func(context.Context
 	mux.HandleFunc(getImageRoute, s.getImage)
 	mux.HandleFunc(listPostsRoute, s.listPosts)
 	mux.HandleFunc(getPostRoute, s.getPost)
-	mux.Handle(listAdminPostsRoute, s.admin(http.HandlerFunc(s.listPosts)))
-	mux.Handle(uploadPhotoRoute, s.admin(limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadImage))))
-	mux.Handle(updatePhotoRoute, s.admin(http.HandlerFunc(s.saveImage)))
-	mux.Handle(movePhotoRoute, s.admin(http.HandlerFunc(s.moveImage)))
-	mux.Handle(deletePhotoRoute, s.admin(http.HandlerFunc(s.deleteImage)))
-	mux.Handle(deleteBlogImageRoute, s.admin(http.HandlerFunc(s.deleteBlogImage)))
-	mux.Handle(uploadBlogImageRoute, s.admin(limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadBlogImage))))
-	mux.Handle(createPostRoute, s.admin(http.HandlerFunc(s.savePost)))
-	mux.Handle(updatePostRoute, s.admin(http.HandlerFunc(s.savePost)))
-	mux.Handle(deletePostRoute, s.admin(http.HandlerFunc(s.deletePost)))
-	mux.HandleFunc(apiPrefix, func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, unknownEndpointMessage) })
+	adminMux := http.NewServeMux()
+	adminMux.HandleFunc(listAdminPostsRoute, s.listPosts)
+	adminMux.Handle(uploadPhotoRoute, limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadImage)))
+	adminMux.HandleFunc(updatePhotoRoute, s.saveImage)
+	adminMux.HandleFunc(movePhotoRoute, s.moveImage)
+	adminMux.HandleFunc(deletePhotoRoute, s.deleteImage)
+	adminMux.HandleFunc(deleteBlogImageRoute, s.deleteBlogImage)
+	adminMux.Handle(uploadBlogImageRoute, limitConcurrency(cfg.MaxUploads, http.HandlerFunc(s.uploadBlogImage)))
+	adminMux.HandleFunc(createPostRoute, s.savePost)
+	adminMux.HandleFunc(updatePostRoute, s.savePost)
+	adminMux.HandleFunc(deletePostRoute, s.deletePost)
+	adminMux.HandleFunc(rootPath, unknownEndpoint)
+
+	protectedAdmin := s.admin(adminMux)
+	mux.Handle(adminAPIPath, protectedAdmin)
+	mux.Handle(adminAPIPrefix, protectedAdmin)
+	mux.HandleFunc(apiPrefix, unknownEndpoint)
 	mux.HandleFunc(rootPath, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set(allowHeader, frontendAllowedMethods)
@@ -114,9 +124,11 @@ func New(gallery *gallery.Module, blog *blog.Module, health func(context.Context
 		}
 		s.frontend(w, r)
 	})
+	policy := contentSecurityPolicy(cfg.PhotoOrigin, cfg.BlogOrigin)
 	protection := http.NewCrossOriginProtection()
 	handler := limitConcurrency(cfg.MaxRequests, protection.Handler(mux))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(contentSecurityPolicyHeader, policy)
 		w.Header().Set(contentTypeOptionsHeader, noSniff)
 		w.Header().Set(referrerPolicyHeader, strictOriginPolicy)
 		w.Header().Set(frameOptionsHeader, denyFraming)
@@ -125,4 +137,8 @@ func New(gallery *gallery.Module, blog *blog.Module, health func(context.Context
 		}
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func unknownEndpoint(w http.ResponseWriter, _ *http.Request) {
+	fail(w, http.StatusNotFound, unknownEndpointMessage)
 }

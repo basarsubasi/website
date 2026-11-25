@@ -1,5 +1,7 @@
 // Keep API error strings separate from the text shown in the Turkish UI.
 const messages: Record<string, string> = {
+  "Invalid rich-text post body": "Yazı içeriği okunamadı. Biçimlendirmeyi kontrol edin.",
+  "Use images uploaded to the configured blog asset origin": "Yazıda yalnızca blog için yüklenen görselleri kullanabilirsiniz.",
   "Invalid password": "Şifre yanlış.",
   "Please sign in": "Lütfen giriş yapın.",
   "Admin login is disabled; configure ADMIN_PASSWORD": "Yönetici girişi henüz yapılandırılmamış.",

@@ -38,6 +38,7 @@ test("upload, view, edit, filter, and delete a photo", async ({ page }) => {
   await login(page);
   await page.getByRole("button", { name: "Fotoğraf ekle", exact: true }).click();
   await page.getByLabel("Fotoğraf dosyası").setInputFiles({ name: "canal.png", mimeType: "image/png", buffer: png });
+  await expect(page.locator(".upload-preview")).toHaveJSProperty("naturalWidth", 1);
   await page.getByLabel("Ad / alternatif metin").fill("Amsterdam canal");
   await page.getByLabel("Şehir", { exact: true }).fill("Amsterdam");
   await page.getByLabel("Ülke", { exact: true }).fill("Netherlands");
@@ -229,6 +230,7 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.locator('.post-editor input[type="file"]').setInputFiles({ name: "blog.png", mimeType: "image/png", buffer: png });
   const figure = page.locator(".tiptap figure");
   await expect(figure.locator("img")).toHaveAttribute("src", /\/blog\/images\/[^/]+$/);
+  await expect(figure.locator("img")).toHaveJSProperty("naturalWidth", 1);
   await expect(figure.locator("img")).toHaveAttribute("width", "1");
   await expect(figure.locator("img")).toHaveAttribute("height", "1");
   await expect(page.locator(".image-size-controls").getByRole("button", { name: "Görseli sil", exact: true })).toBeHidden();
@@ -283,10 +285,26 @@ test("blog images retain width and captions after saving", async ({ page }) => {
 });
 
 
-test("image loading priorities and dimensions reserve space before downloads", async ({ page }) => {
-  await page.route("https://images.example.com/**", route => route.abort());
+test("CSP blocks external images in previously saved posts", async ({ page }) => {
+  const src = "https://external.example.invalid/photo.png";
+  const body = "blog-content-v1:" + JSON.stringify([{ type: "blogImage", attrs: { src } }]);
+  await page.route("**/api/posts/legacy-image", route => route.fulfill({
+    json: { data: { title: "Legacy image", body, created_at: "2026-01-01" } },
+  }));
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", event => {
+      if (event.effectiveDirective === "img-src") document.documentElement.dataset.blockedImage = event.blockedURI;
+    });
+  });
+  const response = await page.goto("/blog/legacy-image");
+  expect(response?.headers()["content-security-policy"]?.split("; ")).toContain("script-src 'self'");
+  await expect(page.locator("html")).toHaveAttribute("data-blocked-image", src);
+});
+
+test("image loading priorities and dimensions reserve space before downloads", async ({ page, baseURL }) => {
+  await page.route("**/test-assets/*.png", route => route.abort());
   const photos = Array.from({ length: 9 }, (_, index) => ({
-    uuid: `photo-${index}`, image_url: `https://images.example.com/${index}.png`,
+    uuid: `photo-${index}`, image_url: new URL(`/test-assets/${index}.png`, baseURL).href,
     width: 1200, height: 800, name: `Photo ${index}`, color: "color",
   }));
   await page.route("**/api/images?*", route => route.fulfill({ json: { data: photos, total: 9 } }));
@@ -494,8 +512,8 @@ for (const kind of ["photo", "post"] as const) {
   }
 }
 
-test("home shows photos and unloaded images never show fallback names", async ({ page }) => {
-  const photo = { uuid: "pending", image_url: "https://images.example.com/pending.png", name: "Name must not flash", width: 1200, height: 800, color: "bw" };
+test("home shows photos and unloaded images never show fallback names", async ({ page, baseURL }) => {
+  const photo = { uuid: "pending", image_url: new URL("/test-assets/pending.png", baseURL).href, name: "Name must not flash", width: 1200, height: 800, color: "bw" };
   await page.route("**/api/images?*", route => route.fulfill({ json: { data: [photo], total: 1 } }));
   await page.route("**/api/images/pending", route => route.fulfill({ json: { data: photo } }));
   let release!: () => void;
