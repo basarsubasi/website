@@ -69,7 +69,7 @@ func appError(w http.ResponseWriter, err error) {
 		fail(w, http.StatusServiceUnavailable, storageBusyMessage)
 	case errors.Is(err, domain.ErrUnavailable):
 		fail(w, http.StatusServiceUnavailable, storageUnavailableMessage)
-	case errors.Is(err, domain.ErrTooLarge), errors.Is(err, domain.ErrVideoTooLarge):
+	case errors.Is(err, domain.ErrTooLarge), errors.Is(err, domain.ErrVideoTooLarge), errors.Is(err, domain.ErrAudioTooLarge):
 		fail(w, http.StatusRequestEntityTooLarge, err.Error())
 	case errors.As(err, &storage):
 		log.Printf(storageErrorLogFormat, storage.Err)

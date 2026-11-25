@@ -16,6 +16,7 @@ const paragraphs = computed(() => readPostBody(props.body));
         <template v-for="(block, index) in paragraphs" :key="index">
           <figure v-if="isMediaNode(block.type)" class="blog-image">
             <video v-if="block.type === 'blogVideo'" controls playsinline preload="metadata" :style="{ width: block.attrs?.width + '%' }" :src="block.attrs?.src" :width="block.attrs?.intrinsicWidth || undefined" :height="block.attrs?.intrinsicHeight || undefined" />
+            <audio v-else-if="block.type === 'blogAudio'" controls preload="metadata" :style="{ width: block.attrs?.width + '%' }" :src="block.attrs?.src" :aria-label="blockText(block) || undefined" />
             <img v-else :style="{ width: block.attrs?.width + '%' }" :src="block.attrs?.src" :width="block.attrs?.intrinsicWidth || undefined" :height="block.attrs?.intrinsicHeight || undefined" alt="" :loading="index < 2 ? 'eager' : 'lazy'" :fetchpriority="index < 2 ? 'high' : 'auto'" decoding="async" />
             <figcaption v-if="blockText(block)">{{ blockText(block) }}</figcaption>
           </figure>
@@ -28,7 +29,8 @@ const paragraphs = computed(() => readPostBody(props.body));
 
 <style>
 .post-body .blog-image { margin: 1.5rem auto; width: 100%; max-width: 100%; }
-.post-body .blog-image :is(img, video) { display: block; width: 100%; height: auto; margin: 0 auto; }
+.post-body .blog-image :is(img, video, audio) { display: block; width: 100%; margin: 0 auto; }
+.post-body .blog-image :is(img, video) { height: auto; }
 .post-body .blog-image figcaption { padding: .5rem .35rem .25rem; color: inherit; text-align: center; font-size: .8em; font-style: italic; line-height: 1.5; white-space: pre-wrap; }
 .post-body .tiptap .blog-image { cursor: pointer; }
 .post-body .tiptap .blog-image:focus-within, .post-body .blog-image.ProseMirror-selectednode { outline: 1px solid #888; outline-offset: 5px; }

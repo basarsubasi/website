@@ -10,7 +10,8 @@ const (
 	notFoundMessage      = "not found"
 	conflictMessage      = "record conflicts with an existing record or constraint"
 	unavailableMessage   = "object storage is not configured"
-	videoTooLargeMessage = "Video must be at most 25 MiB"
+	audioTooLargeMessage = "Audio must be at most 25 MiB"
+	videoTooLargeMessage = "Video must be at most 100 MiB"
 	tooLargeMessage      = "photo must be between 1 byte and 25 MiB"
 	storageErrorPrefix   = "could not "
 	storageErrorSuffix   = " in object storage"
@@ -22,6 +23,7 @@ var (
 	ErrNotFound      = errors.New(notFoundMessage)
 	ErrConflict      = errors.New(conflictMessage)
 	ErrUnavailable   = errors.New(unavailableMessage)
+	ErrAudioTooLarge = errors.New(audioTooLargeMessage)
 	ErrVideoTooLarge = errors.New(videoTooLargeMessage)
 	ErrTooLarge      = errors.New(tooLargeMessage)
 )

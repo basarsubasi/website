@@ -1,3 +1,4 @@
+import { open, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 import { goto, reload, test } from "./coverage";
@@ -283,60 +284,105 @@ test("blog images retain width and captions after saving", async ({ page }) => {
 });
 
 
-test("blog video plays from storage, retains its caption, and deletes only after storage confirms", async ({ page }) => {
+test("video uploads explain unsupported codecs and enforce the 100 MiB limit", async ({ page }, testInfo) => {
   await login(page);
-  const posts = page.getByRole("button", { name: "Blog yazıları", exact: true });
-  await posts.click();
+  await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
   await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
-  await page.getByLabel("Başlık", { exact: true }).fill("Video journal");
-  const picker = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "Video ekle", exact: true }).click();
-  await (await picker).setFiles(fileURLToPath(new URL("../../tests/testdata/blog-clip.mp4", import.meta.url)));
-  const figure = page.locator(".tiptap figure[data-blog-video]");
-  const clip = figure.locator("video");
-  await expect(clip).toHaveAttribute("src", /\/blog\/videos\/[^/]+\.mp4$/);
-  const src = (await clip.getAttribute("src"))!;
-  await figure.locator("figcaption").click();
-  await page.keyboard.insertText("Akşam yürüyüşü.");
-  await page.getByRole("button", { name: "Yazı ayarları" }).click();
-  await page.getByLabel("Durum").selectOption("1");
-  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
-  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+  const input = page.getByLabel("Yazıya eklenecek video", { exact: true });
+  const alert = page.getByRole("alert");
+  await input.setInputFiles(fileURLToPath(new URL("../../tests/testdata/blog-clip.mp4", import.meta.url)));
+  await expect(alert).toHaveText("AV1 video içeren bir MP4 dosyası yükleyin. Ses varsa Opus olmalı.");
 
-  await goto(page, "/blog/video-journal");
-  const player = page.locator("article video");
-  await expect(player).toHaveJSProperty("controls", true);
-  await expect(player).toHaveJSProperty("videoWidth", 64);
-  await expect(page.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
-  await player.evaluate(async (el: HTMLVideoElement) => { el.muted = true; await el.play(); });
-  await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeGreaterThan(0);
-  const range = await page.request.get(src, { headers: { Range: "bytes=0-15" } });
-  expect(range.status()).toBe(206);
-  expect(range.headers()["content-type"]).toBe("video/mp4");
-
-  await goto(page, "/admin");
-  await posts.click();
-  await page.getByRole("listitem").filter({ hasText: "Video journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
-  await expect(figure.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
-  await clip.click();
-  const remove = page.getByRole("button", { name: "Videoyu sil", exact: true });
-  await page.route("**/api/admin/blog/videos/*", route => route.fulfill({ status: 503, json: { error: "Storage unavailable" } }));
-  await remove.click();
-  await expect(page.getByRole("alert")).toBeVisible();
-  await expect(clip).toBeVisible();
-  await page.unroute("**/api/admin/blog/videos/*");
-  await remove.click();
-  await expect(clip).toHaveCount(0);
-  expect((await page.request.get(src)).status()).toBe(404);
-  await page.getByLabel("İçerik", { exact: true }).press("ControlOrMeta+z");
-  await expect(clip).toHaveCount(0);
-  await page.getByLabel("İçerik", { exact: true }).fill("Yürüyüş notları.");
-  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
-  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
-  await goto(page, "/blog/video-journal");
-  await expect(page.locator("article video")).toHaveCount(0);
-  await expect(page.locator(".post-body p")).toHaveText("Yürüyüş notları.");
+  const path = testInfo.outputPath("oversized.mp4");
+  const file = await open(path, "w");
+  try {
+    await file.truncate(100 * 1024 * 1024 + 1);
+    const requests: string[] = [];
+    page.on("request", request => requests.push(request.url()));
+    await input.setInputFiles(path);
+    await expect(alert).toHaveText("Video en fazla 100 MiB olabilir.");
+    expect(requests.some(url => url.endsWith("/api/admin/blog/videos"))).toBe(false);
+  } finally {
+    await file.close();
+    await unlink(path);
+  }
 });
+
+for (const { kind, folder, fixture, codec, mime, urlPattern, add, removeLabel } of [
+  { kind: "video", folder: "videos", fixture: "blog-clip-av1-opus.mp4", codec: "AV1-Opus", mime: "video/mp4", urlPattern: /\/blog\/videos\/[^/]+\.mp4$/, add: "Video ekle", removeLabel: "Videoyu sil" },
+  { kind: "audio", folder: "audio", fixture: "blog-clip.opus", codec: "Opus", mime: "audio/ogg", urlPattern: /\/blog\/audio\/[^/]+\.opus$/, add: "Ses ekle", removeLabel: "Sesi sil" },
+]) {
+  test(`blog ${kind} with ${codec} plays from storage, retains its caption, and deletes only after storage confirms`, async ({ page }) => {
+    const title = `${codec} ${kind} journal`;
+    const articleURL = `/blog/${codec.toLowerCase()}-${kind}-journal`;
+    await login(page);
+    const posts = page.getByRole("button", { name: "Blog yazıları", exact: true });
+    await posts.click();
+    await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
+    await page.getByLabel("Başlık", { exact: true }).fill(title);
+    const editor = page.getByLabel("İçerik", { exact: true });
+    await editor.fill(" Sonra");
+    await editor.press("Home");
+    await page.keyboard.insertText("Önce");
+    const picker = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: add, exact: true }).click();
+    await (await picker).setFiles(fileURLToPath(new URL(`../../tests/testdata/${fixture}`, import.meta.url)));
+    const figure = page.locator(`.tiptap figure[data-blog-${kind}]`);
+    const clip = figure.locator(kind);
+    await expect(clip).toHaveAttribute("src", urlPattern);
+    const src = (await clip.getAttribute("src"))!;
+    await figure.locator("figcaption").click();
+    await page.keyboard.insertText("Akşam yürüyüşü.");
+    await page.getByRole("button", { name: "Yazı ayarları" }).click();
+    await page.getByLabel("Durum").selectOption("1");
+    await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+    await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+
+    await goto(page, articleURL);
+    const player = page.locator(`article ${kind}`);
+    await expect(player).toHaveJSProperty("controls", true);
+    await expect(player).toHaveAttribute("preload", "metadata");
+    await expect(player).toHaveAttribute("src", src);
+    await expect(player.locator("source")).toHaveCount(0);
+    if (kind === "video") await expect(player).toHaveJSProperty("videoWidth", 64);
+    await expect(page.locator(".post-body p").first()).toHaveText("Önce");
+    await expect(page.locator(".post-body p").last()).toHaveText("Sonra");
+    await expect(page.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
+    await player.evaluate(async (el: HTMLMediaElement) => { el.muted = true; await el.play(); });
+    await expect.poll(() => player.evaluate((el: HTMLMediaElement) => el.currentTime)).toBeGreaterThan(0);
+    if (kind === "video") {
+      await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.getVideoPlaybackQuality().totalVideoFrames)).toBeGreaterThan(0);
+    }
+    // A browser can play the video stream even if it skips an unsupported audio track.
+    await expect.poll(() => player.evaluate((el: HTMLMediaElement & { webkitAudioDecodedByteCount: number }) => el.webkitAudioDecodedByteCount)).toBeGreaterThan(0);
+    const range = await page.request.get(src, { headers: { Range: "bytes=0-15" } });
+    expect(range.status()).toBe(206);
+    expect(range.headers()["content-type"]).toBe(mime);
+
+    await goto(page, "/admin");
+    await posts.click();
+    await page.getByRole("listitem").filter({ hasText: title }).getByRole("button", { name: "Düzenle", exact: true }).click();
+    await expect(figure.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
+    await clip.click();
+    const remove = page.getByRole("button", { name: removeLabel, exact: true });
+    await page.route(`**/api/admin/blog/${folder}/*`, route => route.fulfill({ status: 503, json: { error: "Storage unavailable" } }));
+    await remove.click();
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(clip).toBeVisible();
+    await page.unroute(`**/api/admin/blog/${folder}/*`);
+    await remove.click();
+    await expect(clip).toHaveCount(0);
+    expect((await page.request.get(src)).status()).toBe(404);
+    await page.getByLabel("İçerik", { exact: true }).press("ControlOrMeta+z");
+    await expect(clip).toHaveCount(0);
+    await page.getByLabel("İçerik", { exact: true }).fill("Yürüyüş notları.");
+    await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+    await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+    await goto(page, articleURL);
+    await expect(page.locator(`article ${kind}`)).toHaveCount(0);
+    await expect(page.locator(".post-body p")).toHaveText("Yürüyüş notları.");
+  });
+}
 
 test("CSP blocks external images in previously saved posts", async ({ page }) => {
   const src = "https://external.example.invalid/photo.png";

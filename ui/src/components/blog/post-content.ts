@@ -1,8 +1,9 @@
 import type { JSONContent } from "@tiptap/core";
 import { postParagraphs } from "./post-layout";
 
-export type MediaNodeType = "blogImage" | "blogVideo";
-export const isMediaNode = (name: unknown): name is MediaNodeType => name === "blogImage" || name === "blogVideo";
+export const mediaNodeTypes = ["blogImage", "blogVideo", "blogAudio"] as const;
+export type MediaNodeType = typeof mediaNodeTypes[number];
+export const isMediaNode = (name: unknown): name is MediaNodeType => mediaNodeTypes.some(type => type === name);
 const prefix = "blog-content-v1:";
 export const mediaWidth = (value: unknown): number => [25, 50, 75, 100].includes(Number(value)) ? Number(value) : 100;
 export const mediaDimension = (value: unknown): number | null => Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : null;

@@ -10,6 +10,7 @@ require (
 	github.com/aws/smithy-go v1.28.9
 	github.com/disintegration/imaging v1.6.2
 	github.com/gen2brain/vpx v0.2.3
+	github.com/pion/opus v0.1.0
 	modernc.org/sqlite v1.62.0
 )
 

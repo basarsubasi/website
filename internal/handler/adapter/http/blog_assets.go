@@ -15,6 +15,9 @@ const (
 	blogImagesUploadTooLargeMessage = "Photo must be at most 25 MiB"
 	imageRequiredMessage            = "Image file is required"
 	imageFormField                  = "image"
+	audioFormField                  = "audio"
+	audioRequiredMessage            = "Audio file is required"
+	singleAudioRequiredMessage      = "Provide exactly one audio file"
 	videoFormField                  = "video"
 	videoRequiredMessage            = "Video file is required"
 	singleVideoRequiredMessage      = "Provide exactly one video file"
@@ -24,15 +27,19 @@ const (
 )
 
 func (s *Server) uploadBlogImage(w http.ResponseWriter, r *http.Request) {
-	s.uploadBlogAsset(w, r, imageFormField, imageRequiredMessage, singleImageRequiredMessage, blogImagesUploadTooLargeMessage, s.blog.Assets.UploadBlogImage)
+	s.uploadBlogAsset(w, r, imageFormField, imageRequiredMessage, singleImageRequiredMessage, blogImagesUploadTooLargeMessage, media.MaxSize, s.blog.Assets.UploadBlogImage)
 }
 
 func (s *Server) uploadBlogVideo(w http.ResponseWriter, r *http.Request) {
-	s.uploadBlogAsset(w, r, videoFormField, videoRequiredMessage, singleVideoRequiredMessage, domain.ErrVideoTooLarge.Error(), s.blog.Assets.UploadBlogVideo)
+	s.uploadBlogAsset(w, r, videoFormField, videoRequiredMessage, singleVideoRequiredMessage, domain.ErrVideoTooLarge.Error(), media.MaxVideoSize, s.blog.Assets.UploadBlogVideo)
 }
 
-func (s *Server) uploadBlogAsset(w http.ResponseWriter, r *http.Request, field, required, single, tooLargeMessage string, upload func(context.Context, io.ReadSeeker, int64) (article.BlogAsset, error)) {
-	r.Body = http.MaxBytesReader(w, r.Body, media.MaxSize+(64<<10))
+func (s *Server) uploadBlogAudio(w http.ResponseWriter, r *http.Request) {
+	s.uploadBlogAsset(w, r, audioFormField, audioRequiredMessage, singleAudioRequiredMessage, domain.ErrAudioTooLarge.Error(), media.MaxSize, s.blog.Assets.UploadBlogAudio)
+}
+
+func (s *Server) uploadBlogAsset(w http.ResponseWriter, r *http.Request, field, required, single, tooLargeMessage string, maxFileSize int64, upload func(context.Context, io.ReadSeeker, int64) (article.BlogAsset, error)) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize+(64<<10))
 	err := r.ParseMultipartForm(2 << 20)
 	if r.MultipartForm != nil {
 		defer r.MultipartForm.RemoveAll()
@@ -66,6 +73,14 @@ func (s *Server) uploadBlogAsset(w http.ResponseWriter, r *http.Request, field, 
 
 func (s *Server) deleteBlogImage(w http.ResponseWriter, r *http.Request) {
 	if err := s.blog.Assets.DeleteBlogImage(r.Context(), r.PathValue(filenameParam)); err != nil {
+		appError(w, err)
+		return
+	}
+	reply(w, http.StatusNoContent, nil)
+}
+
+func (s *Server) deleteBlogAudio(w http.ResponseWriter, r *http.Request) {
+	if err := s.blog.Assets.DeleteBlogAudio(r.Context(), r.PathValue(filenameParam)); err != nil {
 		appError(w, err)
 		return
 	}

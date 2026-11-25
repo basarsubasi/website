@@ -11,6 +11,10 @@ import (
 )
 
 const (
+	trustedAudio        = "https://images.example.com/audio/00000000-0000-0000-0000-000000000001.opus"
+	externalAudio       = "https://other.example.com/audio/00000000-0000-0000-0000-000000000001.opus"
+	wrongAudioKey       = "https://images.example.com/images/00000000-0000-0000-0000-000000000001.opus"
+	audioPostFormat     = `blog-content-v1:[{"type":"blogAudio","attrs":{"src":%q}}]`
 	trustedVideo        = "https://images.example.com/videos/00000000-0000-0000-0000-000000000001.mp4"
 	videoPostFormat     = `blog-content-v1:[{"type":"blogVideo","attrs":{"src":%q}}]`
 	imagePostSlug       = "image-policy"
@@ -62,18 +66,28 @@ func TestSavePostChecksImageOriginBeforeWriting(t *testing.T) {
 	c.request(http.MethodPut, postUpdatePrefix+saved.ID, post, http.StatusOK)
 }
 
-func TestSavePostChecksVideoOrigin(t *testing.T) {
-	c := setup(t)
-	c.login()
-	post := article.PostInput{Title: imagePostTitle, Slug: imagePostSlug, Published: 1, Body: fmt.Sprintf(videoPostFormat, trustedVideo)}
-	saved := item[article.Post](t, c.request(http.MethodPost, serverTestAdminPostsPath, post, http.StatusCreated))
-	for _, src := range []string{otherImage, trustedImage} {
-		post.Body = fmt.Sprintf(videoPostFormat, src)
-		c.request(http.MethodPut, postUpdatePrefix+saved.ID, post, http.StatusBadRequest)
-	}
-	got := item[article.Post](t, c.request(http.MethodGet, publicImagePostPath, nil, http.StatusOK))
-	if got.Body != saved.Body {
-		t.Fatal(saveChangedBody)
+func TestSavePostChecksMediaOriginAndKey(t *testing.T) {
+	for _, tc := range []struct {
+		format, trusted string
+		rejected        []string
+	}{
+		{videoPostFormat, trustedVideo, []string{otherImage, trustedImage, trustedAudio}},
+		{audioPostFormat, trustedAudio, []string{externalAudio, wrongAudioKey, trustedVideo}},
+	} {
+		t.Run(tc.trusted, func(t *testing.T) {
+			c := setup(t)
+			c.login()
+			post := article.PostInput{Title: imagePostTitle, Slug: imagePostSlug, Published: 1, Body: fmt.Sprintf(tc.format, tc.trusted)}
+			saved := item[article.Post](t, c.request(http.MethodPost, serverTestAdminPostsPath, post, http.StatusCreated))
+			for _, src := range tc.rejected {
+				post.Body = fmt.Sprintf(tc.format, src)
+				c.request(http.MethodPut, postUpdatePrefix+saved.ID, post, http.StatusBadRequest)
+			}
+			got := item[article.Post](t, c.request(http.MethodGet, publicImagePostPath, nil, http.StatusOK))
+			if got.Body != saved.Body {
+				t.Fatal(saveChangedBody)
+			}
+		})
 	}
 }
 

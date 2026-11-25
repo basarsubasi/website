@@ -16,10 +16,14 @@ import (
 
 const (
 	videoUploadPath                 = "/api/admin/blog/videos"
-	videoClipFixture                = "../../../../tests/testdata/blog-clip.mp4"
+	videoClipFixture                = "../../../../tests/testdata/blog-clip-av1-opus.mp4"
 	clipFilename                    = "clip.mp4"
 	invalidDeleteVideo              = "/api/admin/blog/videos/catalog.json"
-	videoObjectMismatch             = "stored video differs from uploaded bytes"
+	audioUploadPath                 = "/api/admin/blog/audio"
+	audioClipFixture                = "../../../../tests/testdata/blog-clip.opus"
+	audioClipFilename               = "clip.opus"
+	invalidDeleteAudio              = "/api/admin/blog/audio/catalog.json"
+	mediaObjectMismatch             = "stored clip differs from uploaded bytes"
 	imageField                      = "image"
 	uploadFilename                  = "photo.png"
 	uploadPath                      = "/api/admin/blog/images"
@@ -70,29 +74,36 @@ func TestBlogImageUpload(t *testing.T) {
 
 }
 
-func TestBlogVideoUploadAndDelete(t *testing.T) {
-	raw, err := os.ReadFile(videoClipFixture)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := setup(t)
-	upload := func(raw []byte, status int) *httptest.ResponseRecorder {
-		return c.uploadBlogFile(t, videoUploadPath, videoFormField, clipFilename, raw, status)
-	}
-	upload(raw, http.StatusUnauthorized)
-	c.request(http.MethodDelete, invalidDeleteVideo, nil, http.StatusUnauthorized)
-	c.login()
-	c.request(http.MethodDelete, invalidDeleteVideo, nil, http.StatusBadRequest)
-	upload(pngBytes(t), http.StatusBadRequest)
-	result := item[struct{ URL string }](t, upload(raw, http.StatusCreated))
-	key := strings.TrimPrefix(result.URL, bucketBaseURL)
-	got, _, err := c.objects.Read(t.Context(), key)
-	if err != nil || !bytes.Equal(raw, got) {
-		t.Fatal(videoObjectMismatch, err)
-	}
-	c.request(http.MethodDelete, adminBlogPathPrefix+key, nil, http.StatusNoContent)
-	if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf(failedDeletionFormat, err)
+func TestBlogMediaUploadAndDelete(t *testing.T) {
+	for _, tc := range []struct{ endpoint, field, fixture, filename, invalidDelete string }{
+		{videoUploadPath, videoFormField, videoClipFixture, clipFilename, invalidDeleteVideo},
+		{audioUploadPath, audioFormField, audioClipFixture, audioClipFilename, invalidDeleteAudio},
+	} {
+		t.Run(tc.field, func(t *testing.T) {
+			raw, err := os.ReadFile(tc.fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := setup(t)
+			upload := func(raw []byte, status int) *httptest.ResponseRecorder {
+				return c.uploadBlogFile(t, tc.endpoint, tc.field, tc.filename, raw, status)
+			}
+			upload(raw, http.StatusUnauthorized)
+			c.request(http.MethodDelete, tc.invalidDelete, nil, http.StatusUnauthorized)
+			c.login()
+			c.request(http.MethodDelete, tc.invalidDelete, nil, http.StatusBadRequest)
+			upload(pngBytes(t), http.StatusBadRequest)
+			result := item[struct{ URL string }](t, upload(raw, http.StatusCreated))
+			key := strings.TrimPrefix(result.URL, bucketBaseURL)
+			got, _, err := c.objects.Read(t.Context(), key)
+			if err != nil || !bytes.Equal(raw, got) {
+				t.Fatal(mediaObjectMismatch, err)
+			}
+			c.request(http.MethodDelete, adminBlogPathPrefix+key, nil, http.StatusNoContent)
+			if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
+				t.Fatalf(failedDeletionFormat, err)
+			}
+		})
 	}
 }
 

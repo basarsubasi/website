@@ -2,11 +2,14 @@ import { NodeSelection, Plugin } from "@tiptap/pm/state";
 import { Node } from "@tiptap/core";
 import { mediaURL, mediaWidth, mediaDimension, type MediaNodeType } from "./post-content";
 
+const mediaElements = {
+  blogImage: { tag: "img", marker: "data-blog-image", placeholder: "Görsel açıklaması ekleyin…" },
+  blogVideo: { tag: "video", marker: "data-blog-video", placeholder: "Video açıklaması ekleyin…" },
+  blogAudio: { tag: "audio", marker: "data-blog-audio", placeholder: "Ses açıklaması ekleyin…" },
+} as const;
+
 function mediaNode(name: MediaNodeType) {
-  const isVideo = name === "blogVideo";
-  const tag = isVideo ? "video" : "img";
-  const marker = isVideo ? "data-blog-video" : "data-blog-image";
-  const placeholder = isVideo ? "Video açıklaması ekleyin…" : "Görsel açıklaması ekleyin…";
+  const { tag, marker, placeholder } = mediaElements[name];
   return Node.create({
     name,
     addOptions() {
@@ -35,14 +38,17 @@ function mediaNode(name: MediaNodeType) {
         frame.className = "blog-image-frame";
         frame.contentEditable = "false";
         const media = document.createElement(tag);
-        if (media instanceof HTMLVideoElement) {
+        if (media instanceof HTMLMediaElement) {
           media.controls = true;
-          media.playsInline = true;
+          if (media instanceof HTMLVideoElement) media.playsInline = true;
           media.preload = "metadata";
-          media.addEventListener("pointerdown", () => {
+          const selectPlayer = () => {
             const pos = getPos();
             if (pos !== undefined) editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
-          });
+          };
+          // Native controls can consume pointer events inside their shadow tree.
+          frame.addEventListener("pointerdown", selectPlayer, true);
+          frame.addEventListener("focusin", selectPlayer);
         } else {
           media.alt = "";
           media.decoding = "async";
@@ -64,7 +70,7 @@ function mediaNode(name: MediaNodeType) {
         update();
         return {
           dom, contentDOM: caption,
-          stopEvent: event => isVideo && event.target === media,
+          stopEvent: event => tag !== "img" && event.target === media,
           update(node) {
             if (node.type.name !== name) return false;
             current = node;
@@ -81,7 +87,10 @@ function mediaNode(name: MediaNodeType) {
     content: "inline*",
     isolating: true,
     addAttributes() {
-      return { src: { default: "" }, width: { default: 100 }, intrinsicWidth: { default: null }, intrinsicHeight: { default: null } };
+      return {
+        src: { default: "" }, width: { default: 100 },
+        ...(tag === "audio" ? {} : { intrinsicWidth: { default: null }, intrinsicHeight: { default: null } }),
+      };
     },
     parseHTML() {
       return [{
@@ -101,7 +110,8 @@ function mediaNode(name: MediaNodeType) {
       const attributes = {
         src: mediaURL(src), style: `width: ${mediaWidth(width)}%; margin: 0 auto`,
         width: mediaDimension(intrinsicWidth), height: mediaDimension(intrinsicHeight), contenteditable: "false",
-        ...(isVideo ? { controls: true, playsinline: true, preload: "metadata" } : { alt: "", decoding: "async" }),
+        ...(tag === "img" ? { alt: "", decoding: "async" } : { controls: true, preload: "metadata" }),
+        ...(tag === "video" ? { playsinline: true } : {}),
       };
       return ["figure", { [marker]: "", "data-width": mediaWidth(width), class: "blog-image" },
         [tag, attributes], ["figcaption", { "data-placeholder": placeholder }, 0]];
@@ -111,3 +121,4 @@ function mediaNode(name: MediaNodeType) {
 
 export const BlogImage = mediaNode("blogImage");
 export const BlogVideo = mediaNode("blogVideo");
+export const BlogAudio = mediaNode("blogAudio");

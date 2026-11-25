@@ -1,28 +1,26 @@
 package media
 
 import (
-	"bytes"
 	"io"
 	"slices"
 
-	"github.com/Eyevinn/mp4ff/aac"
 	"github.com/Eyevinn/mp4ff/mp4"
 
 	"github.com/basarsubasi/website/internal/shared/domain"
 )
 
 const (
+	MaxVideoSize     = 100 << 20
 	VideoContentType = "video/mp4"
 	videoExtension   = "mp4"
-	invalidVideo     = "Upload an MP4 with H.264 video and optional AAC audio"
+	invalidVideo     = "Upload an MP4 with AV1 video and optional Opus audio"
 	fileTypeBox      = "ftyp"
 	movieBox         = "moov"
 	mediaDataBox     = "mdat"
 	videoHandler     = "vide"
 	audioHandler     = "soun"
-	avc1Entry        = "avc1"
-	avc3Entry        = "avc3"
-	aacEntry         = "mp4a"
+	av1Entry         = "av01"
+	opusEntry        = "Opus"
 	// Bound metadata parsing independently of the encoded video payload.
 	maxMovieHeader    = 2 << 20
 	maxFileTypeHeader = 4096
@@ -32,7 +30,7 @@ const (
 // InspectVideo reads track metadata and skips the encoded frames. The original
 // file is rewound for streaming to storage, including when moov follows mdat.
 func InspectVideo(file io.ReadSeeker, size int64) (FileInfo, error) {
-	if size > MaxSize {
+	if size > MaxVideoSize {
 		return FileInfo{}, domain.ErrVideoTooLarge
 	}
 	var movie videoMetadata
@@ -99,7 +97,7 @@ func isMP4FileType(hdr mp4.BoxHeader, file io.Reader) bool {
 		return false
 	}
 	ftyp := box.(*mp4.FtypBox)
-	brands := []string{mp4.BrandIsom, mp4.BrandMp41, mp4.BrandMp42, mp4.BrandIso6, avc1Entry}
+	brands := []string{mp4.BrandIsom, mp4.BrandMp41, mp4.BrandMp42, mp4.BrandIso2, mp4.BrandIso6, mp4.BrandAv01}
 	return slices.Contains(brands, ftyp.MajorBrand()) || slices.ContainsFunc(brands, ftyp.HasCompatibleBrand)
 }
 
@@ -129,10 +127,11 @@ func (m *videoMetadata) acceptTrack(track *mp4.TrakBox) bool {
 
 func (m *videoMetadata) acceptSampleEntry(kind string, entry mp4.Box) bool {
 	if kind == audioHandler {
-		return isAAC(entry)
+		audio, ok := entry.(*mp4.AudioSampleEntryBox)
+		return ok && audio.Type() == opusEntry && validOpusConfig(audio.Dops)
 	}
 	video, ok := entry.(*mp4.VisualSampleEntryBox)
-	if !ok || (video.Type() != avc1Entry && video.Type() != avc3Entry) || video.AvcC == nil || video.Width == 0 || video.Height == 0 {
+	if !ok || video.Type() != av1Entry || video.Av1C == nil || video.Av1C.SeqProfile > 2 || video.Width == 0 || video.Height == 0 {
 		return false
 	}
 	if m.info.Width == 0 {
@@ -141,15 +140,22 @@ func (m *videoMetadata) acceptSampleEntry(kind string, entry mp4.Box) bool {
 	return true
 }
 
-func isAAC(entry mp4.Box) bool {
-	audio, ok := entry.(*mp4.AudioSampleEntryBox)
-	if !ok || audio.Type() != aacEntry || audio.Esds == nil || audio.Esds.DecConfigDescriptor == nil {
+func validOpusConfig(config *mp4.DopsBox) bool {
+	if config == nil || config.Version != 0 || config.OutputChannelCount == 0 {
 		return false
 	}
-	config := audio.Esds.DecConfigDescriptor
-	if config.ObjectType != mp4.ObjectTypeAAC || config.DecSpecificInfo == nil {
+	if config.ChannelMappingFamily == 0 {
+		return config.OutputChannelCount <= 2
+	}
+	channels := int(config.StreamCount) + int(config.CoupledCount)
+	if config.StreamCount == 0 || config.CoupledCount > config.StreamCount || channels > 255 || len(config.ChannelMapping) != int(config.OutputChannelCount) {
 		return false
 	}
-	_, err := aac.DecodeAudioSpecificConfig(bytes.NewReader(config.DecSpecificInfo.DecConfig))
-	return err == nil
+	// Index 255 denotes a silent output channel in an Opus channel map.
+	for _, index := range config.ChannelMapping {
+		if index != 255 && int(index) >= channels {
+			return false
+		}
+	}
+	return true
 }

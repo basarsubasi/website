@@ -1,7 +1,15 @@
 // Keep API error strings separate from the text shown in the Turkish UI.
 const messages: Record<string, string> = {
-  "Upload an MP4 with H.264 video and optional AAC audio": "H.264 video ve varsa AAC ses içeren bir MP4 dosyası yükleyin.",
-  "Video must be at most 25 MiB": "Video en fazla 25 MiB olabilir.",
+  "Upload an Ogg Opus audio file": "Ogg biçiminde, Opus kodlamalı bir ses dosyası yükleyin.",
+  "Audio must be at most 25 MiB": "Ses dosyası en fazla 25 MiB olabilir.",
+  "Audio file is required": "Bir ses dosyası seçin.",
+  "Provide exactly one audio file": "Tek bir ses dosyası seçin.",
+  "Invalid blog audio filename": "Ses dosyasının adı geçersiz.",
+  "Use audio uploaded to the configured blog asset origin": "Yazıda yalnızca blog için yüklenen ses dosyalarını kullanabilirsiniz.",
+  "could not upload audio in object storage": "Ses dosyası depolama hizmetine yüklenemedi.",
+  "could not delete blog audio in object storage": "Ses dosyası depolama hizmetinden silinemedi.",
+  "Upload an MP4 with AV1 video and optional Opus audio": "AV1 video içeren bir MP4 dosyası yükleyin. Ses varsa Opus olmalı.",
+  "Video must be at most 100 MiB": "Video en fazla 100 MiB olabilir.",
   "Video file is required": "Bir video dosyası seçin.",
   "Provide exactly one video file": "Tek bir video dosyası seçin.",
   "Use videos uploaded to the configured blog asset origin": "Yazıda yalnızca blog için yüklenen videoları kullanabilirsiniz.",

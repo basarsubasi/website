@@ -2,8 +2,8 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { EditorContent, useEditor } from "@tiptap/vue-3";
 import { NodeSelection } from "@tiptap/pm/state";
-import { BlogImage, BlogVideo } from "./blog-media";
-import { isMediaNode, type MediaNodeType, paragraphsToDocument, readPostBody, writePostBody } from "./post-content";
+import { BlogAudio, BlogImage, BlogVideo } from "./blog-media";
+import { isMediaNode, mediaNodeTypes, type MediaNodeType, paragraphsToDocument, readPostBody, writePostBody } from "./post-content";
 import { api, message, send } from "../../services/api";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
@@ -38,14 +38,19 @@ watch(() => !!uploading.value || deletingMedia.value || snapshot() !== initialFo
 const deletedMedia = new Set<string>();
 const imageInput = ref<HTMLInputElement>();
 const videoInput = ref<HTMLInputElement>();
+const audioInput = ref<HTMLInputElement>();
 const mediaSettings = {
   blogImage: {
     field: "image", folder: "images", width: "Görsel genişliği", remove: "Görseli sil",
-    deleteTitle: "Görseli kalıcı olarak sil", sizeError: "Görsel en fazla 25 MiB olabilir.",
+    deleteTitle: "Görseli kalıcı olarak sil", sizeLabel: "Görsel", maxMiB: 25,
+  },
+  blogAudio: {
+    field: "audio", folder: "audio", width: "Ses oynatıcı genişliği", remove: "Sesi sil",
+    deleteTitle: "Sesi kalıcı olarak sil", sizeLabel: "Ses dosyası", maxMiB: 25,
   },
   blogVideo: {
     field: "video", folder: "videos", width: "Video genişliği", remove: "Videoyu sil",
-    deleteTitle: "Videoyu kalıcı olarak sil", sizeError: "Video en fazla 25 MiB olabilir.",
+    deleteTitle: "Videoyu kalıcı olarak sil", sizeLabel: "Video", maxMiB: 100,
   },
 } as const;
 async function uploadMedia(event: Event, type: MediaNodeType) {
@@ -53,7 +58,11 @@ async function uploadMedia(event: Event, type: MediaNodeType) {
   const file = input.files?.[0];
   if (!file || !editor.value || props.busy || uploading.value || deletingMedia.value) return;
   const settings = mediaSettings[type];
-  if (file.size > 25 * 1024 * 1024) { error.value = settings.sizeError; input.value = ""; return; }
+  if (file.size > settings.maxMiB * 1024 * 1024) {
+    error.value = `${settings.sizeLabel} en fazla ${settings.maxMiB} MiB olabilir.`;
+    input.value = "";
+    return;
+  }
   const position = editor.value.state.selection.from;
   uploading.value = type;
   editor.value.setEditable(false, false);
@@ -61,7 +70,7 @@ async function uploadMedia(event: Event, type: MediaNodeType) {
   try {
     const data = new FormData();
     data.append(settings.field, file);
-    const result = await api<{ data: { url: string; width: number; height: number } }>(`/admin/blog/${settings.folder}`, { method: "POST", body: data });
+    const result = await api<{ data: { url: string; width?: number; height?: number } }>(`/admin/blog/${settings.folder}`, { method: "POST", body: data });
     editor.value.chain().focus().insertContentAt(position, [{ type, attrs: { src: result.data.url, width: 100, intrinsicWidth: result.data.width, intrinsicHeight: result.data.height } }, { type: "paragraph" }]).run();
   } catch (err) { error.value = message(err); }
   finally { uploading.value = null; editor.value?.setEditable(!props.busy, false); input.value = ""; }
@@ -89,7 +98,7 @@ async function deleteMedia(type: MediaNodeType, src: string) {
   finally { deletingMedia.value = false; editor.value?.setEditable(!props.busy, false); }
 }
 const editor = useEditor({
-  extensions: [...[BlogImage, BlogVideo].map(node => node.configure({ isDeleted: (src: string) => deletedMedia.has(src) })), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
+  extensions: [...[BlogImage, BlogVideo, BlogAudio].map(node => node.configure({ isDeleted: (src: string) => deletedMedia.has(src) })), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
   content: { type: "doc", content: readPostBody(form.body) },
   editable: !props.busy,
   editorProps: {
@@ -112,11 +121,7 @@ const editor = useEditor({
     error.value = "";
   },
 });
-const activeMedia = computed(() => {
-  if (editor.value?.isActive("blogVideo")) return "blogVideo";
-  if (editor.value?.isActive("blogImage")) return "blogImage";
-  return null;
-});
+const activeMedia = computed(() => mediaNodeTypes.find(type => editor.value?.isActive(type)));
 watch(() => props.busy, (busy) => editor.value?.setEditable(!busy && !uploading.value && !deletingMedia.value, false));
 onMounted(() => { if (!props.post) titleField.value?.focus(); });
 
@@ -170,10 +175,13 @@ async function save() {
       <input id="blog-image-file" ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadMedia($event, 'blogImage')" />
       <label for="blog-video-file" hidden>Yazıya eklenecek video</label>
       <input id="blog-video-file" ref="videoInput" type="file" accept="video/mp4,.mp4" hidden @change="uploadMedia($event, 'blogVideo')" />
+      <label for="blog-audio-file" hidden>Yazıya eklenecek ses</label>
+      <input id="blog-audio-file" ref="audioInput" type="file" accept=".opus,.ogg,audio/ogg" hidden @change="uploadMedia($event, 'blogAudio')" />
       <span class="hint">{{ post ? "Yazıyı düzenle" : "Yeni yazı" }}</span>
       <div class="actions">
         <button type="button" :disabled="busy || !!uploading || deletingMedia" @click="imageInput?.click()">{{ uploading === "blogImage" ? "Yükleniyor…" : "Görsel ekle" }}</button>
-        <button type="button" :disabled="busy || !!uploading || deletingMedia" title="MP4 · H.264 · AAC · En fazla 25 MiB" @click="videoInput?.click()">{{ uploading === "blogVideo" ? "Yükleniyor…" : "Video ekle" }}</button>
+        <button type="button" :disabled="busy || !!uploading || deletingMedia" :title="`MP4 · AV1 · İsteğe bağlı Opus ses · En fazla ${mediaSettings.blogVideo.maxMiB} MiB`" @click="videoInput?.click()">{{ uploading === "blogVideo" ? "Yükleniyor…" : "Video ekle" }}</button>
+        <button type="button" :disabled="busy || !!uploading || deletingMedia" :title="`Ogg Opus · En fazla ${mediaSettings.blogAudio.maxMiB} MiB`" @click="audioInput?.click()">{{ uploading === "blogAudio" ? "Yükleniyor…" : "Ses ekle" }}</button>
         <button type="button" :disabled="busy || !!uploading || deletingMedia" :aria-expanded="settingsOpen" aria-controls="post-settings" @click="settingsOpen = !settingsOpen">Yazı ayarları</button>
         <button type="submit" :disabled="busy || !!uploading || deletingMedia">Yazıyı kaydet</button>
         <button type="button" :disabled="busy || !!uploading || deletingMedia" @click="emit('cancel')">Vazgeç</button>

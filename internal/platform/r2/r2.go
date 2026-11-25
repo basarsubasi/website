@@ -33,6 +33,7 @@ const (
 	pathSeparator             = "/"
 
 	photoKeyPrefix       = "photos/"
+	blogAudioKeyPrefix   = "audio/"
 	blogVideoKeyPrefix   = "videos/"
 	blogImageKeyPrefix   = "images/"
 	imageMediaTypePrefix = "image/"
@@ -106,6 +107,9 @@ func (r *R2) PublicOrigin() media.Origin { return r.publicOrigin }
 // Media uploads have unique keys and their bytes never change. Metadata edits
 // must preserve this policy; catalogs and post backups must not inherit it.
 func objectCacheControl(key, contentType string) string {
+	if strings.HasPrefix(key, blogAudioKeyPrefix) && contentType == media.AudioContentType {
+		return immutableCachePolicy
+	}
 	if strings.HasPrefix(key, blogVideoKeyPrefix) && contentType == media.VideoContentType {
 		return immutableCachePolicy
 	}

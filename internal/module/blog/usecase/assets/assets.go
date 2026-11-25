@@ -12,6 +12,9 @@ import (
 )
 
 const (
+	audioUploadOperation   = "upload audio"
+	audioDeleteOperation   = "delete blog audio"
+	invalidAudioFilename   = "Invalid blog audio filename"
 	videoUploadOperation   = "upload video"
 	videoDeleteOperation   = "delete blog video"
 	invalidVideoFilename   = "Invalid blog video filename"
@@ -28,6 +31,10 @@ func (u *UseCase) UploadBlogImage(ctx context.Context, file io.ReadSeeker, size 
 
 func (u *UseCase) UploadBlogVideo(ctx context.Context, file io.ReadSeeker, size int64) (article.BlogAsset, error) {
 	return u.upload(ctx, file, size, article.VideoKeyPrefix, videoUploadOperation, media.InspectVideo)
+}
+
+func (u *UseCase) UploadBlogAudio(ctx context.Context, file io.ReadSeeker, size int64) (article.BlogAsset, error) {
+	return u.upload(ctx, file, size, article.AudioKeyPrefix, audioUploadOperation, media.InspectAudio)
 }
 
 func (u *UseCase) upload(ctx context.Context, file io.ReadSeeker, size int64, prefix, operation string, inspect func(io.ReadSeeker, int64) (media.FileInfo, error)) (article.BlogAsset, error) {
@@ -53,6 +60,10 @@ func (u *UseCase) DeleteBlogImage(ctx context.Context, filename string) error {
 
 func (u *UseCase) DeleteBlogVideo(ctx context.Context, filename string) error {
 	return u.delete(ctx, filename, article.VideoKeyPrefix, article.ValidVideoFilename, invalidVideoFilename, videoDeleteOperation)
+}
+
+func (u *UseCase) DeleteBlogAudio(ctx context.Context, filename string) error {
+	return u.delete(ctx, filename, article.AudioKeyPrefix, article.ValidAudioFilename, invalidAudioFilename, audioDeleteOperation)
 }
 
 func (u *UseCase) delete(ctx context.Context, filename, prefix string, permitted func(string) bool, invalid, operation string) error {
