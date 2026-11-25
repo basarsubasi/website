@@ -269,18 +269,13 @@ func (c *client) upload(input any, raw []byte, status int) *httptest.ResponseRec
 	req.Header.Set(serverTestContentTypeHeader, writer.FormDataContentType())
 	return c.do(req, status)
 }
-func TestPhotoAPIAndReboot(t *testing.T) {
-	c := setup(t)
-	input := galleryphoto.PhotoInput{Name: originalPhotoName, City: originalCity, Country: originalCountry, YearTaken: 2025, Color: blackAndWhite}
-	c.upload(input, pngBytes(t), 401)
-	c.login()
-	original := pngBytes(t)
-	photo := item[galleryphoto.Image](t, c.upload(input, original, 201))
-	key := galleryphoto.PreviewKey(photo.UUID)
-	if raw, _, err := c.objects.Read(t.Context(), photo.ObjectKey); err != nil || !bytes.Equal(raw, original) {
+
+func assertStoredPhotoFiles(t *testing.T, objects *testutil.Objects, photo galleryphoto.Image, original []byte) {
+	t.Helper()
+	if raw, _, err := objects.Read(t.Context(), photo.ObjectKey); err != nil || !bytes.Equal(raw, original) {
 		t.Fatal(changedOriginalFailure, err)
 	}
-	raw, _, err := c.objects.Read(t.Context(), key)
+	raw, _, err := objects.Read(t.Context(), galleryphoto.PreviewKey(photo.UUID))
 	if err != nil || photo.PreviewURL == responseEmptyString || photo.PreviewURL == photo.ImageURL {
 		t.Fatal(galleryPreviewFailure, err)
 	}
@@ -288,6 +283,16 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 	if err != nil || format != webpFormat || cfg.Width != photo.Width || cfg.Height != photo.Height {
 		t.Fatal(galleryPreviewFailure, err)
 	}
+}
+
+func TestPhotoAPIAndReboot(t *testing.T) {
+	c := setup(t)
+	input := galleryphoto.PhotoInput{Name: originalPhotoName, City: originalCity, Country: originalCountry, YearTaken: 2025, Color: blackAndWhite}
+	c.upload(input, pngBytes(t), 401)
+	c.login()
+	original := pngBytes(t)
+	photo := item[galleryphoto.Image](t, c.upload(input, original, 201))
+	assertStoredPhotoFiles(t, c.objects, photo, original)
 	assertV4(t, photo.UUID)
 	if photo.FileType != pngContentType {
 		t.Fatal(trustedFilenameFailure)
@@ -318,7 +323,7 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 	if err := c.repo.SyncBackups(context.Background(), c.backup); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{photo.ObjectKey, key} {
+	for _, key := range []string{photo.ObjectKey, galleryphoto.PreviewKey(photo.UUID)} {
 		if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
 			t.Fatal(retainedObjectFailure, key)
 		}

@@ -67,23 +67,28 @@ func (m *videoMetadata) readBox(hdr mp4.BoxHeader, offset uint64, file io.Reader
 		}
 		m.hasType = true
 	case movieBox:
-		if m.info.Width != 0 || hdr.Size > maxMovieHeader {
-			return domain.Invalid(invalidVideo)
-		}
-		box, err := mp4.DecodeMoov(hdr, offset, file)
-		if err != nil {
-			return domain.Invalid(invalidVideo)
-		}
-		for _, track := range box.(*mp4.MoovBox).Traks {
-			if !m.acceptTrack(track) {
-				return domain.Invalid(invalidVideo)
-			}
-		}
-		if m.info.Width == 0 {
-			return domain.Invalid(invalidVideo)
-		}
+		return m.readMovieBox(hdr, offset, file)
 	case mediaDataBox:
 		m.hasData = m.hasData || hdr.Size > uint64(hdr.Hdrlen)
+	}
+	return nil
+}
+
+func (m *videoMetadata) readMovieBox(hdr mp4.BoxHeader, offset uint64, file io.Reader) error {
+	if m.info.Width != 0 || hdr.Size > maxMovieHeader {
+		return domain.Invalid(invalidVideo)
+	}
+	box, err := mp4.DecodeMoov(hdr, offset, file)
+	if err != nil {
+		return domain.Invalid(invalidVideo)
+	}
+	for _, track := range box.(*mp4.MoovBox).Traks {
+		if !m.acceptTrack(track) {
+			return domain.Invalid(invalidVideo)
+		}
+	}
+	if m.info.Width == 0 {
+		return domain.Invalid(invalidVideo)
 	}
 	return nil
 }

@@ -26,20 +26,37 @@ const (
 	filenameParam                   = "filename"
 )
 
+type blogUploadForm struct {
+	field             string
+	maxFileSize       int64
+	requiredMessage   string
+	singleFileMessage string
+	tooLargeMessage   string
+}
+
 func (s *Server) uploadBlogImage(w http.ResponseWriter, r *http.Request) {
-	s.uploadBlogAsset(w, r, imageFormField, imageRequiredMessage, singleImageRequiredMessage, blogImagesUploadTooLargeMessage, media.MaxSize, s.blog.Assets.UploadBlogImage)
+	uploadBlogAsset(w, r, blogUploadForm{
+		field: imageFormField, requiredMessage: imageRequiredMessage, singleFileMessage: singleImageRequiredMessage,
+		maxFileSize: media.MaxSize, tooLargeMessage: blogImagesUploadTooLargeMessage,
+	}, s.blog.Assets.UploadBlogImage)
 }
 
 func (s *Server) uploadBlogVideo(w http.ResponseWriter, r *http.Request) {
-	s.uploadBlogAsset(w, r, videoFormField, videoRequiredMessage, singleVideoRequiredMessage, domain.ErrVideoTooLarge.Error(), media.MaxVideoSize, s.blog.Assets.UploadBlogVideo)
+	uploadBlogAsset(w, r, blogUploadForm{
+		field: videoFormField, requiredMessage: videoRequiredMessage, singleFileMessage: singleVideoRequiredMessage,
+		maxFileSize: media.MaxVideoSize, tooLargeMessage: domain.ErrVideoTooLarge.Error(),
+	}, s.blog.Assets.UploadBlogVideo)
 }
 
 func (s *Server) uploadBlogAudio(w http.ResponseWriter, r *http.Request) {
-	s.uploadBlogAsset(w, r, audioFormField, audioRequiredMessage, singleAudioRequiredMessage, domain.ErrAudioTooLarge.Error(), media.MaxSize, s.blog.Assets.UploadBlogAudio)
+	uploadBlogAsset(w, r, blogUploadForm{
+		field: audioFormField, requiredMessage: audioRequiredMessage, singleFileMessage: singleAudioRequiredMessage,
+		maxFileSize: media.MaxSize, tooLargeMessage: domain.ErrAudioTooLarge.Error(),
+	}, s.blog.Assets.UploadBlogAudio)
 }
 
-func (s *Server) uploadBlogAsset(w http.ResponseWriter, r *http.Request, field, required, single, tooLargeMessage string, maxFileSize int64, upload func(context.Context, io.ReadSeeker, int64) (article.BlogAsset, error)) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize+(64<<10))
+func uploadBlogAsset(w http.ResponseWriter, r *http.Request, form blogUploadForm, upload func(context.Context, io.ReadSeeker, int64) (article.BlogAsset, error)) {
+	r.Body = http.MaxBytesReader(w, r.Body, form.maxFileSize+(64<<10))
 	err := r.ParseMultipartForm(2 << 20)
 	if r.MultipartForm != nil {
 		defer r.MultipartForm.RemoveAll()
@@ -47,19 +64,19 @@ func (s *Server) uploadBlogAsset(w http.ResponseWriter, r *http.Request, field, 
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			fail(w, http.StatusRequestEntityTooLarge, tooLargeMessage)
+			fail(w, http.StatusRequestEntityTooLarge, form.tooLargeMessage)
 		} else {
-			fail(w, http.StatusBadRequest, required)
+			fail(w, http.StatusBadRequest, form.requiredMessage)
 		}
 		return
 	}
-	if len(r.MultipartForm.File) != 1 || len(r.MultipartForm.File[field]) != 1 || len(r.MultipartForm.Value) != 0 {
-		fail(w, http.StatusBadRequest, single)
+	if len(r.MultipartForm.File) != 1 || len(r.MultipartForm.File[form.field]) != 1 || len(r.MultipartForm.Value) != 0 {
+		fail(w, http.StatusBadRequest, form.singleFileMessage)
 		return
 	}
-	file, header, err := r.FormFile(field)
+	file, header, err := r.FormFile(form.field)
 	if err != nil {
-		fail(w, http.StatusBadRequest, required)
+		fail(w, http.StatusBadRequest, form.requiredMessage)
 		return
 	}
 	defer file.Close()
