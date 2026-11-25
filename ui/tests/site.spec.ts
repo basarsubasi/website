@@ -321,9 +321,20 @@ for (const { kind, folder, fixture, codec, mime, urlPattern, add, removeLabel } 
     await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
     await page.getByLabel("Başlık", { exact: true }).fill(title);
     const editor = page.getByLabel("İçerik", { exact: true });
-    await editor.fill(" Sonra");
-    await editor.press("Home");
-    await page.keyboard.insertText("Önce");
+    const before = "Önce";
+    const after = "Sonra";
+    await editor.fill(before + after);
+    const paragraph = editor.locator("p");
+    await expect(paragraph).toHaveText(before + after);
+    await paragraph.evaluate((p, offset) => {
+      const selection = window.getSelection()!;
+      if (selection.isCollapsed && selection.anchorNode === p.firstChild && selection.anchorOffset === offset) return;
+      // Let the editor observe the new caret before the upload button takes focus.
+      return new Promise<void>(resolve => {
+        document.addEventListener("selectionchange", () => resolve(), { once: true });
+        selection.collapse(p.firstChild, offset);
+      });
+    }, before.length);
     const picker = page.waitForEvent("filechooser");
     await page.getByRole("button", { name: add, exact: true }).click();
     await (await picker).setFiles(fileURLToPath(new URL(`../../tests/testdata/${fixture}`, import.meta.url)));
@@ -345,8 +356,8 @@ for (const { kind, folder, fixture, codec, mime, urlPattern, add, removeLabel } 
     await expect(player).toHaveAttribute("src", src);
     await expect(player.locator("source")).toHaveCount(0);
     if (kind === "video") await expect(player).toHaveJSProperty("videoWidth", 64);
-    await expect(page.locator(".post-body p").first()).toHaveText("Önce");
-    await expect(page.locator(".post-body p").last()).toHaveText("Sonra");
+    await expect(page.locator(".post-body p").first()).toHaveText(before);
+    await expect(page.locator(".post-body p").last()).toHaveText(after);
     await expect(page.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
     await player.evaluate(async (el: HTMLMediaElement) => { el.muted = true; await el.play(); });
     await expect.poll(() => player.evaluate((el: HTMLMediaElement) => el.currentTime)).toBeGreaterThan(0);
