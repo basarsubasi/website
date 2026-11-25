@@ -5,12 +5,10 @@
 !.env.example
 !*.env.example
 
-# Go builds, Air hot-reload output, and profiling.
+# Go builds, test output, and profiling.
 /bin/
 /.tmp/
 /website
-/seed
-/unseed
 *.test
 *.prof
 /coverage/
@@ -19,7 +17,7 @@
 
 # Frontend dependencies, builds, and caches.
 node_modules/
-/frontend/dist/
+/ui/dist/
 .vite/
 *.tsbuildinfo
 
@@ -48,8 +46,8 @@ Thumbs.db
 Desktop.ini
 
 # Browser test artifacts.
-/frontend/test-results/
-/frontend/playwright-report/
+/ui/test-results/
+/ui/playwright-report/
 __pycache__/
 
 # Keep the complete generated dependency tree, including upstream fixture files.

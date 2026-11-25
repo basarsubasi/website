@@ -1,5 +1,5 @@
 package main
 
-import application "github.com/basarsubasi/website/internal"
+import "github.com/basarsubasi/website/internal/application"
 
 func main() { application.Main() }

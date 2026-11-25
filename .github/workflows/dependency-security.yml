@@ -52,5 +52,5 @@ jobs:
         with:
           node-version: "26"
       - name: Check frontend runtime and development dependencies
-        working-directory: frontend
+        working-directory: ui
         run: npm audit --package-lock-only --ignore-scripts

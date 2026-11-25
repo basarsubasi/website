@@ -1,12 +1,29 @@
 version: "2"
 sql:
   - engine: sqlite
-    schema:
-      - internal/adapters/database/schema.sql
-      - internal/adapters/database/post_summaries.sql
-    queries: internal/adapters/database/queries.sql
+    schema: database/migrations
+    queries: database/queries/gallery
     gen:
       go:
-        package: dbquery
-        out: internal/adapters/database/dbquery
+        package: store
+        out: gen/sqlc/gallery
         emit_empty_slices: true
+        omit_unused_structs: true
+  - engine: sqlite
+    schema: database/migrations
+    queries: database/queries/blog
+    gen:
+      go:
+        package: store
+        out: gen/sqlc/blog
+        emit_empty_slices: true
+        omit_unused_structs: true
+  - engine: sqlite
+    schema: database/migrations
+    queries: database/queries/storage
+    gen:
+      go:
+        package: store
+        out: gen/sqlc/storage
+        emit_empty_slices: true
+        omit_unused_structs: true

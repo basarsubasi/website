@@ -1,56 +1,49 @@
-.PHONY: build frontend test dev seed unseed dev-docker test-ui test-container vendor tidy vendor-check
+DEV_EXEC := mise exec --
+
+.PHONY: build dev install frontend test test-ui vendor tidy vendor-check
 
 build: frontend
 	mkdir -p bin
-	go build -mod=vendor -o bin/website ./cmd/website
+	$(DEV_EXEC) go build -mod=vendor -o bin/website ./cmd/website
+
+dev: frontend
+	$(DEV_EXEC) go run -mod=vendor ./internal/testutil/cmd/testserver
+
+install:
+	mise install
+	$(DEV_EXEC) npm --prefix ui ci --include=dev
 
 frontend:
-	cd frontend && npm ci && npm run build
+	$(DEV_EXEC) npm --prefix ui ci --include=dev
+	$(DEV_EXEC) npm --prefix ui run build
 
 test:
-	go test -mod=vendor -race ./...
-	cd frontend && npm run typecheck
-
-dev:
-	go run -mod=vendor ./cmd/website
+	$(DEV_EXEC) go test -mod=vendor -race ./...
+	$(DEV_EXEC) npm --prefix ui run typecheck
 
 # Run after changing dependencies; commit vendor/ together with go.mod and go.sum.
 vendor:
-	go mod vendor
+	$(DEV_EXEC) go mod vendor
 
 tidy:
-	go mod tidy
-	go mod vendor
+	$(DEV_EXEC) go mod tidy
+	$(DEV_EXEC) go mod vendor
 
 # Regenerate separately so checking never changes the working vendor directory.
 vendor-check:
 	@set -eu; vendor_tmp=$$(mktemp -d); \
 	trap 'rm -rf "$$vendor_tmp"' EXIT; \
-	go mod vendor -o "$$vendor_tmp/vendor"; \
+	$(DEV_EXEC) go mod vendor -o "$$vendor_tmp/vendor"; \
 	diff -qr vendor "$$vendor_tmp/vendor"
 
-seed:
-	sh scripts/seed.sh
-
-unseed:
-	sh scripts/unseed.sh
-
-dev-docker:
-	docker compose -f compose.dev.yaml up --build
-
-# One-time browser setup: cd frontend && npx playwright install --with-deps chromium
+# One-time browser setup: cd ui && npx playwright install --with-deps chromium
 test-ui:
-	cd frontend && npm ci && npm run test:ui
-
-test-container:
-	python3 scripts/smoke-container.py
-
-# Keep generated query code reproducible without adding sqlc to runtime dependencies.
-SQLC = go run -mod=mod github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+	$(DEV_EXEC) npm --prefix ui ci --include=dev
+	$(DEV_EXEC) npm --prefix ui run test:ui
 
 .PHONY: sqlc sqlc-check
 sqlc:
-	$(SQLC) generate
+	$(DEV_EXEC) sqlc generate
 
 sqlc-check:
-	$(SQLC) diff
+	$(DEV_EXEC) sqlc diff
