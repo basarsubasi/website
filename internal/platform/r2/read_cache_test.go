@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 	"uuid"
 
@@ -20,7 +21,8 @@ const (
 	readCacheTestPostsPrefix = "posts/"
 	readCacheTestEmptyValue  = ""
 
-	readTimeoutFailure = "read did not start"
+	readTimeoutFailure  = "read did not start"
+	abandonedReadFormat = "after the read deadline: in flight=%d, cached error=%v"
 
 	readCacheTestPostBody = "body"
 
@@ -286,4 +288,31 @@ func TestConcurrentPostReadsShareOneFetch(t *testing.T) {
 	if reads := store.reads.Load() - before; reads != 1 {
 		t.Fatalf(fetchCountFormat, reads)
 	}
+}
+
+func TestAbandonedReadReleasesItsSlotAtDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		repo, store, _ := cacheFixture(t)
+		expireCatalog(repo)
+		store.blockCatalog.Store(true)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		result := make(chan error, 1)
+		go func() { result <- repo.Ping(ctx) }()
+		awaitRead(t, store)
+		cancel()
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+
+		time.Sleep(readTimeout)
+		synctest.Wait()
+		repo.reads.mu.Lock()
+		defer repo.reads.mu.Unlock()
+		err := repo.reads.entries[CatalogKey].err
+		if len(repo.reads.flights) != 0 || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf(abandonedReadFormat, len(repo.reads.flights), err)
+		}
+	})
 }

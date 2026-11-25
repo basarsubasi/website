@@ -39,6 +39,12 @@ jobs:
       - name: Install frontend dependencies for TypeScript analysis
         working-directory: ui
         run: npm ci --ignore-scripts --no-audit
+      - name: Install Chromium for browser tests
+        working-directory: ui
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Run browser tests with coverage
+        working-directory: ui
+        run: npm run test:coverage
       - name: Scan and check quality gate
         uses: SonarSource/sonarqube-scan-action@70bad232163b09d998ea0707ee80c0ec80798c16 # v8.5.1
         with:

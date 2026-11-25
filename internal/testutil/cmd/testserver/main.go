@@ -3,16 +3,21 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
-	"net/http"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/basarsubasi/website/internal/application"
+	"github.com/basarsubasi/website/internal/platform/httpserver"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
 const (
+	tcpNetwork         = "tcp"
 	addressFlag        = "addr"
 	defaultAddress     = "127.0.0.1:18080"
 	addressHelp        = "listen address"
@@ -59,11 +64,18 @@ func main() {
 }
 
 func run(address, frontend string, s3Only bool) error {
-	storage := testutil.S3BucketsServer(map[string]*testutil.Objects{photosBucket: testutil.NewObjects(), blogBucket: testutil.NewObjects()})
-	defer storage.Close()
+	buckets := map[string]*testutil.Objects{photosBucket: testutil.NewObjects(), blogBucket: testutil.NewObjects()}
 	if s3Only {
-		return http.ListenAndServe(address, storage.Config.Handler)
+		listener, err := net.Listen(tcpNetwork, address)
+		if err != nil {
+			return err
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return httpserver.Serve(ctx, httpserver.New(address, testutil.S3BucketsHandler(buckets)), listener, httpserver.DefaultMaxConnections)
 	}
+	storage := testutil.S3BucketsServer(buckets)
+	defer storage.Close()
 	dir, err := os.MkdirTemp(emptyString, tempDirPrefix)
 	if err != nil {
 		return err

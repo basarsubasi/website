@@ -27,6 +27,7 @@ import (
 	gallerysqlite "github.com/basarsubasi/website/internal/module/gallery/adapter/sqlite"
 	"github.com/basarsubasi/website/internal/platform/backup"
 	"github.com/basarsubasi/website/internal/platform/database"
+	"github.com/basarsubasi/website/internal/platform/httpserver"
 	"github.com/basarsubasi/website/internal/platform/r2"
 )
 
@@ -102,7 +103,8 @@ const (
 	inlineCommentPrefix           = " #"
 	unexpectedQuotedSuffixMessage = "unexpected text after quote"
 
-	pendingBackupFormat = "R2 backup pending (%d queued operations): %v"
+	pendingBackupFormat  = "R2 backup pending (%d queued operations): %v"
+	backupAttemptTimeout = 2 * time.Minute
 )
 
 var (
@@ -207,8 +209,8 @@ func New(cfg Config) (*Application, error) {
 		TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy,
 		MaxRequests: cfg.MaxRequests, MaxUploads: cfg.MaxUploads,
 	})
-	server := &http.Server{Addr: cfg.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
-	return &Application{Repository: repo, Backup: backup, Objects: objects, BlogObjects: blogObjects, Gallery: galleryModule, Blog: blogModule, Handler: handler, Server: server}, nil
+	server := httpserver.New(cfg.Address, handler)
+	return &Application{Repository: repo, Backup: backup, Objects: objects, BlogObjects: blogObjects, Gallery: galleryModule, Blog: blogModule, Handler: server.Handler, Server: server}, nil
 }
 func Main() {
 	if err := Run(os.Args[1:]); err != nil {
@@ -232,30 +234,12 @@ func Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	listener = limitConnections(listener, cfg.MaxConnections)
-	defer listener.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	stopBackups := app.startBackups(ctx)
 	defer stopBackups()
-	result := make(chan error, 1)
-	go func() { result <- app.Server.Serve(listener) }()
 	log.Printf(listeningFormat, cfg.Address)
-	select {
-	case err := <-result:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
-	case <-ctx.Done():
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := app.Server.Shutdown(shutdown); err != nil {
-			_ = app.Server.Close()
-			return err
-		}
-		return nil
-	}
+	return httpserver.Serve(ctx, app.Server, listener, cfg.MaxConnections)
 }
 
 // Flags override process environment, which overrides .env and then defaults.
@@ -324,7 +308,7 @@ func (cfg *Config) readLimits(get func(string) string) error {
 	}{
 		{envMaxRequests, &cfg.MaxRequests, httpadapter.DefaultMaxRequests},
 		{envMaxUploads, &cfg.MaxUploads, httpadapter.DefaultMaxUploads},
-		{envMaxConnections, &cfg.MaxConnections, defaultMaxConnections},
+		{envMaxConnections, &cfg.MaxConnections, httpserver.DefaultMaxConnections},
 	} {
 		*limit.value = limit.fallback
 		if raw := get(limit.name); raw != emptyString {
@@ -457,13 +441,13 @@ func (app *Application) startBackups(parent context.Context) func() {
 		defer ticker.Stop()
 		var maintenance time.Time
 		for {
-			pending, err := app.Repository.PendingBackups(ctx)
+			attempt, stop := context.WithTimeout(ctx, backupAttemptTimeout)
+			pending, err := app.Repository.PendingBackups(attempt)
 			if err == nil && (pending > 0 || time.Since(maintenance) >= time.Minute) {
-				attempt, stop := context.WithTimeout(ctx, 2*time.Minute)
 				err = app.Repository.SyncBackups(attempt, app.Backup)
-				stop()
 				maintenance = time.Now()
 			}
+			stop()
 			if err != nil && ctx.Err() == nil {
 				log.Printf(pendingBackupFormat, pending, err)
 			}

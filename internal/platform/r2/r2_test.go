@@ -3,15 +3,21 @@ package r2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 const (
+	galleryBucketPrefix        = "/" + bucketName + "/"
+	otherBucket                = "blog"
+	excessConnectionFormat     = "second bucket acquired a connection at capacity: %v"
 	expectedObjectPath         = "/gallery/photos/test.png"
 	wrongPathFormat            = "wrong object path: %s"
 	authorizationHeader        = "Authorization"
@@ -178,4 +184,62 @@ func checkPutRequest(t *testing.T, w http.ResponseWriter, r *http.Request) {
 		t.Error(checksumTrailerFailure)
 	}
 	w.Header().Set(etagHeader, responseETag)
+}
+
+func TestBucketsShareOutboundConnectionLimit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	entered := make(chan struct{}, maxConnectionsPerHost)
+	release := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, galleryBucketPrefix) {
+			entered <- struct{}{}
+			select {
+			case <-release:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer endpoint.Close()
+	var workers sync.WaitGroup
+	defer workers.Wait()
+	defer unblock()
+
+	config := Config{Endpoint: endpoint.URL, Bucket: bucketName, AccessKeyID: accessKeyID, SecretAccessKey: cacheTestCredential, PublicURL: endpoint.URL}
+	gallery, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Bucket = otherBucket
+	blog, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range maxConnectionsPerHost {
+		workers.Go(func() {
+			if _, _, err := gallery.Read(ctx, CatalogKey); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	for range maxConnectionsPerHost {
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	wait, stop := context.WithTimeout(ctx, 100*time.Millisecond)
+	_, _, err = blog.Read(wait, CatalogKey)
+	stop()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf(excessConnectionFormat, err)
+	}
+	unblock()
+	if _, _, err := blog.Read(ctx, CatalogKey); err != nil {
+		t.Fatal(err)
+	}
 }

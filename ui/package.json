@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "vue-tsc --noEmit",
     "build": "vue-tsc --noEmit && vite build",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "test:coverage": "UI_COVERAGE=1 playwright test && test -s test-results/coverage/lcov.info"
   },
   "dependencies": {
     "@tiptap/core": "^3.33.1",
@@ -24,6 +25,7 @@
     "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.11",
+    "monocart-coverage-reports": "^3.3.0",
     "typescript": "~5.9.3",
     "vite": "^8.3.8",
     "vue-tsc": "^3.3.14"

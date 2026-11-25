@@ -15,9 +15,10 @@ const (
 	DefaultMaxUploads  = 2
 )
 
-// limitConcurrency rejects excess work instead of accumulating waiting handlers.
-func limitConcurrency(limit int, next http.Handler) http.Handler {
-	slots := make(chan struct{}, limit)
+// A concurrencyLimit shares slots across all handlers wrapped by the same limit.
+type concurrencyLimit chan struct{}
+
+func (slots concurrencyLimit) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case slots <- struct{}{}:

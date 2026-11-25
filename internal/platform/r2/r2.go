@@ -49,6 +49,15 @@ const (
 	conditionalConflictCode = "ConditionalRequestConflict"
 )
 
+const maxConnectionsPerHost = 32
+
+// Both bucket clients share the same dial, active and idle connection budget.
+var storageHTTPClient = func() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxConnsPerHost = maxConnectionsPerHost
+	return &http.Client{Transport: transport, Timeout: 90 * time.Second}
+}()
+
 type Config struct {
 	Endpoint        string
 	Bucket          string
@@ -83,7 +92,7 @@ func New(cfg Config) (*R2, error) {
 	client := s3.NewFromConfig(aws.Config{
 		Region:      autoRegion,
 		Credentials: credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, r2EmptyString),
-		HTTPClient:  &http.Client{Timeout: 90 * time.Second},
+		HTTPClient:  storageHTTPClient,
 		// R2 does not implement every S3 flexible-checksum/trailer combination.
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
 		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,

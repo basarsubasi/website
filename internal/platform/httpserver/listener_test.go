@@ -1,4 +1,4 @@
-package application
+package httpserver
 
 import (
 	"errors"
@@ -23,7 +23,7 @@ func TestConnectionLimitAndShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listener := limitConnections(raw, 1)
+	listener := LimitConnections(raw, 1)
 	defer listener.Close()
 	dial := func() net.Conn {
 		t.Helper()
@@ -87,7 +87,7 @@ func TestConnectionAcceptErrorReleasesCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listener := limitConnections(raw, 1)
+	listener := LimitConnections(raw, 1)
 	defer listener.Close()
 	raw.Close()
 	done := make(chan struct{})

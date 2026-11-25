@@ -1,7 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { goto, reload, test } from "./coverage";
 
 async function login(page: Page) {
-  await page.goto("/admin");
+  await goto(page, "/admin");
   await page.getByLabel("Şifre").fill("ui-test-password-only");
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByRole("button", { name: "Çıkış yap" })).toBeVisible();
@@ -15,22 +16,22 @@ const png = Buffer.from(
 
 test("gallery and blog routes render without a site header", async ({ page }) => {
   for (const path of ["/photos", "/bw-photos", "/color-photos", "/blog", "/blog/missing-post"]) {
-    await page.goto(path);
+    await goto(page, path);
     await expect(page.locator("main")).toBeVisible();
     await expect(page.getByRole("banner")).toHaveCount(0);
   }
 });
 
 test("login errors, session reload, and logout", async ({ page }) => {
-  await page.goto("/admin");
+  await goto(page, "/admin");
   await page.getByLabel("Şifre").fill("incorrect");
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText("Şifre yanlış.");
   await login(page);
-  await page.reload();
+  await reload(page);
   await expect(page.getByRole("button", { name: "Çıkış yap" })).toBeVisible();
   await page.getByRole("button", { name: "Çıkış yap" }).click();
-  await page.reload();
+  await reload(page);
   await expect(page.getByLabel("Şifre")).toBeVisible();
 });
 
@@ -47,29 +48,29 @@ test("upload, view, edit, filter, and delete a photo", async ({ page }) => {
   await page.getByRole("button", { name: "Fotoğrafı kaydet" }).click();
   await expect(page.getByText("Fotoğraf kaydedildi.", { exact: true })).toBeVisible();
 
-  await page.goto("/bw-photos");
+  await goto(page, "/bw-photos");
   const image = page.getByRole("img", { name: "Amsterdam canal" });
   await expect(image).toBeVisible();
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
   await image.click();
   await expect(page).toHaveURL(/\/photo\//);
-  await page.reload();
+  await reload(page);
   await expect(page.locator(".single-image-page img")).toBeVisible();
   await expect(page.locator(".single-image-page")).toHaveText("");
 
-  await page.goto("/admin");
+  await goto(page, "/admin");
   const row = page.getByRole("listitem").filter({ hasText: "Amsterdam canal" });
   await row.getByRole("button", { name: "Düzenle", exact: true }).click();
   await page.getByLabel("Ad / alternatif metin").fill("Canal in color");
   await page.getByRole("combobox", { name: "Renk", exact: true }).selectOption("color");
   await page.getByRole("button", { name: "Fotoğrafı kaydet" }).click();
   await expect(page.getByText("Fotoğraf kaydedildi.", { exact: true })).toBeVisible();
-  await page.goto("/bw-photos");
+  await goto(page, "/bw-photos");
   await expect(page.getByText("Henüz fotoğraf yok.")).toBeVisible();
-  await page.goto("/color-photos");
+  await goto(page, "/color-photos");
   await expect(page.getByRole("img", { name: "Canal in color" })).toBeVisible();
 
-  await page.goto("/admin");
+  await goto(page, "/admin");
   const edited = page.getByRole("listitem").filter({ hasText: "Canal in color" });
   await edited.getByRole("button", { name: "Sil", exact: true }).click();
   await edited.getByRole("button", { name: "Vazgeç", exact: true }).click();
@@ -77,11 +78,11 @@ test("upload, view, edit, filter, and delete a photo", async ({ page }) => {
   await edited.getByRole("button", { name: "Sil", exact: true }).click();
   await edited.getByRole("button", { name: "Kalıcı olarak sil" }).click();
   await expect(edited).toHaveCount(0);
-  await page.goto("/color-photos");
+  await goto(page, "/color-photos");
   await expect(page.getByText("Henüz fotoğraf yok.")).toBeVisible();
 });
 
-test("draft privacy, publishing, editing, deep links, and deletion", async ({ page, browser }) => {
+test("draft privacy, publishing, editing, deep links, and deletion", async ({ page, publicPage }) => {
   await login(page);
   await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
   await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
@@ -92,38 +93,34 @@ test("draft privacy, publishing, editing, deep links, and deletion", async ({ pa
   await page.getByLabel("İçerik", { exact: true }).fill("First paragraph.\n\nSecond paragraph.");
   await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
   await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
-  const visitor = await browser.newContext();
-  const publicPage = await visitor.newPage();
-  try {
-    await publicPage.goto("http://127.0.0.1:18080/blog/istanbul-kis-gunlugu");
-    await expect(publicPage.getByRole("alert")).toHaveText("İçerik bulunamadı.");
-    await publicPage.goto("http://127.0.0.1:18080/blog");
-    await expect(publicPage.getByRole("heading", { name: "İstanbul kış günlüğü" })).toHaveCount(0);
+  await goto(publicPage, "/blog/istanbul-kis-gunlugu");
+  await expect(publicPage.getByRole("alert")).toHaveText("İçerik bulunamadı.");
+  await goto(publicPage, "/blog");
+  await expect(publicPage.getByRole("heading", { name: "İstanbul kış günlüğü" })).toHaveCount(0);
 
-    const row = page.getByRole("listitem").filter({ hasText: "İstanbul kış günlüğü" });
-    await row.getByRole("button", { name: "Düzenle", exact: true }).click();
-    await page.getByRole("button", { name: "Yazı ayarları" }).click();
-    await page.getByLabel("Durum").selectOption("1");
-    await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
-    await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
-    await publicPage.reload();
-    await expect(publicPage.getByText("A day beside the canals.")).toBeVisible();
-    await publicPage.getByRole("link", { name: "İstanbul kış günlüğü", exact: true }).click();
-    await publicPage.reload();
-    await expect(publicPage.locator(".post-body p")).toHaveText(["First paragraph.", "Second paragraph."]);
+  const row = page.getByRole("listitem").filter({ hasText: "İstanbul kış günlüğü" });
+  await row.getByRole("button", { name: "Düzenle", exact: true }).click();
+  await page.getByRole("button", { name: "Yazı ayarları" }).click();
+  await page.getByLabel("Durum").selectOption("1");
+  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+  await reload(publicPage);
+  await expect(publicPage.getByText("A day beside the canals.")).toBeVisible();
+  await publicPage.getByRole("link", { name: "İstanbul kış günlüğü", exact: true }).click();
+  await reload(publicPage);
+  await expect(publicPage.locator(".post-body p")).toHaveText(["First paragraph.", "Second paragraph."]);
 
-    await row.getByRole("button", { name: "Düzenle", exact: true }).click();
-    await page.getByLabel("İçerik", { exact: true }).fill("Updated journal.");
-    await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
-    await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
-    await publicPage.reload();
-    await expect(publicPage.getByText("Updated journal.", { exact: true })).toBeVisible();
-    await row.getByRole("button", { name: "Sil", exact: true }).click();
-    await row.getByRole("button", { name: "Kalıcı olarak sil" }).click();
-    await expect(row).toHaveCount(0);
-    await publicPage.reload();
-    await expect(publicPage.getByRole("alert")).toHaveText("İçerik bulunamadı.");
-  } finally { await visitor.close(); }
+  await row.getByRole("button", { name: "Düzenle", exact: true }).click();
+  await page.getByLabel("İçerik", { exact: true }).fill("Updated journal.");
+  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+  await reload(publicPage);
+  await expect(publicPage.getByText("Updated journal.", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Sil", exact: true }).click();
+  await row.getByRole("button", { name: "Kalıcı olarak sil" }).click();
+  await expect(row).toHaveCount(0);
+  await reload(publicPage);
+  await expect(publicPage.getByRole("alert")).toHaveText("İçerik bulunamadı.");
 });
 
 test("invalid image uploads show a useful error", async ({ page }) => {
@@ -176,7 +173,7 @@ test("inline editor matches the published layout and preserves paragraphs and li
   await page.getByLabel("Durum").selectOption("1");
   await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
   await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
-  await page.goto("/blog/istanbul-sokaklarinda-bir-sonbahar-sabahi");
+  await goto(page, "/blog/istanbul-sokaklarinda-bir-sonbahar-sabahi");
   await expect(page.locator(".post-body p")).toHaveText([
     "İlk paragraf. Sokaklarda yürürken ışığın ve gölgelerin değişimini izledim.",
     "İkinci paragraf.\nAynı paragrafta yeni satır.",
@@ -185,7 +182,7 @@ test("inline editor matches the published layout and preserves paragraphs and li
     await page.setViewportSize({ width, height: 900 });
     expect(await postLayout(page)).toEqual(layouts[index]);
   }
-  await page.goto("/admin");
+  await goto(page, "/admin");
   await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
   const row = page.getByRole("listitem").filter({ hasText: "İstanbul sokaklarında bir sonbahar sabahı" });
   await row.getByRole("button", { name: "Düzenle", exact: true }).click();
@@ -253,8 +250,8 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.getByRole("listitem").filter({ hasText: "Image journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
   await expect(figure.locator(".blog-image-frame")).toHaveAttribute("style", /width: 50%/);
   await expect(figure.locator("figcaption")).toHaveText("A quiet afternoon.");
-  await page.goto("/blog/image-journal");
-  await page.reload();
+  await goto(page, "/blog/image-journal");
+  await reload(page);
   await expect(page.locator("figure img")).toHaveAttribute("style", /width: 50%/);
   await expect(page.locator("figcaption")).toHaveText("A quiet afternoon.");
   await expect(page.locator("figcaption")).toHaveCSS("font-style", "italic");
@@ -264,7 +261,7 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   const caption = page.locator("figure figcaption");
   expect((await caption.boundingBox())!.width).toBeGreaterThan((await page.locator("figure img").boundingBox())!.width);
   const src = await page.locator("figure img").getAttribute("src");
-  await page.goto("/admin");
+  await goto(page, "/admin");
   await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
   await page.getByRole("listitem").filter({ hasText: "Image journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
   await figure.locator("img").click();
@@ -280,7 +277,7 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await expect(figure).toHaveCount(0);
   await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
   await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
-  await page.goto("/blog/image-journal");
+  await goto(page, "/blog/image-journal");
   await expect(page.locator("figure")).toHaveCount(0);
 });
 
@@ -296,7 +293,7 @@ test("CSP blocks external images in previously saved posts", async ({ page }) =>
       if (event.effectiveDirective === "img-src") document.documentElement.dataset.blockedImage = event.blockedURI;
     });
   });
-  const response = await page.goto("/blog/legacy-image");
+  const response = await goto(page, "/blog/legacy-image");
   expect(response?.headers()["content-security-policy"]?.split("; ")).toContain("script-src 'self'");
   await expect(page.locator("html")).toHaveAttribute("data-blocked-image", src);
 });
@@ -308,7 +305,7 @@ test("image loading priorities and dimensions reserve space before downloads", a
     width: 1200, height: 800, name: `Photo ${index}`, color: "color",
   }));
   await page.route("**/api/images?*", route => route.fulfill({ json: { data: photos, total: 9 } }));
-  await page.goto("/photos");
+  await goto(page, "/photos");
   const thumbnails = page.locator(".grid img");
   await expect(thumbnails).toHaveCount(9);
   for (let index = 0; index < 9; index++) {
@@ -331,7 +328,7 @@ test("image loading priorities and dimensions reserve space before downloads", a
   await page.route("**/api/posts/loading-policy", route => route.fulfill({ json: { data: {
     title: "Loading policy", body, created_at: "2026-01-01T00:00:00Z",
   } } }));
-  await page.goto("/blog/loading-policy");
+  await goto(page, "/blog/loading-policy");
   const images = page.locator(".blog-image img");
   await expect(images.first()).toHaveAttribute("loading", "eager");
   await expect(images.first()).toHaveAttribute("fetchpriority", "high");
@@ -354,13 +351,13 @@ test("admin arrows save gallery order across pages and reloads", async ({ page }
       expect(response.ok()).toBeTruthy();
       ids.push((await response.json()).data.uuid);
     }
-    await page.reload();
+    await reload(page);
     const rows = page.locator(".admin-list > li");
     await expect(rows.first()).toContainText("Order 20");
     await expect(rows.first().getByRole("button", { name: "Yukarı taşı" })).toBeDisabled();
     await rows.first().getByRole("button", { name: "Aşağı taşı" }).click();
     await expect(rows.first()).toContainText("Order 19");
-    await page.reload();
+    await reload(page);
     await expect(rows.first()).toContainText("Order 19");
     await rows.last().getByRole("button", { name: "Aşağı taşı" }).click();
     await expect(rows.first()).toContainText("Order 1");
@@ -371,7 +368,7 @@ test("admin arrows save gallery order across pages and reloads", async ({ page }
     await page.setViewportSize({ width: 375, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     for (const path of ["/photos", "/bw-photos"]) {
-      await page.goto(path);
+      await goto(page, path);
       await expect(page.locator(".grid img").first()).toHaveAttribute("alt", "Order 19");
       await expect(page.locator(".grid img").nth(1)).toHaveAttribute("alt", "Order 20");
     }
@@ -455,7 +452,7 @@ for (const kind of ["photo", "post"] as const) {
           expect(response.ok()).toBeTruthy();
           const record = (await response.json()).data;
           id = record.uuid ?? record.id;
-          await page.reload();
+          await reload(page);
         }
         if (kind === "post") await page.getByRole("button", { name: "Blog yazıları", exact: true }).click();
         if (operation === "edit") {
@@ -521,7 +518,7 @@ test("home shows photos and unloaded images never show fallback names", async ({
     await gate;
     await route.fulfill({ contentType: "image/png", body: png });
   });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await goto(page, "/", { waitUntil: "domcontentloaded" });
   const thumbnail = page.locator(".grid img");
   await expect(thumbnail).toHaveCount(1);
   await expect(thumbnail).toHaveAttribute("alt", photo.name);
@@ -531,10 +528,10 @@ test("home shows photos and unloaded images never show fallback names", async ({
   // Failed downloads remain blank, including on the single-photo page.
   await page.unroute(photo.image_url);
   await page.route(photo.image_url, route => route.abort());
-  await page.goto("/photo/pending");
+  await goto(page, "/photo/pending");
   await expect(page.locator(".single-image-page img")).toHaveCSS("opacity", "0");
-  await page.goto("/photos");
+  await goto(page, "/photos");
   await expect(thumbnail).toHaveCSS("opacity", "0");
-  await page.goto("/blog");
+  await goto(page, "/blog");
   await expect(page.locator(".blog")).toBeVisible();
 });

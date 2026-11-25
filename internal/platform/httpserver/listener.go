@@ -1,11 +1,11 @@
-package application
+package httpserver
 
 import (
 	"net"
 	"sync"
 )
 
-const defaultMaxConnections = 128
+const DefaultMaxConnections = 128
 
 // limitedListener stops accepting when all connection slots are occupied.
 // Further connections wait in the OS backlog, not in application goroutines.
@@ -17,9 +17,9 @@ type limitedListener struct {
 	err   error
 }
 
-func limitConnections(listener net.Listener, limit int) net.Listener {
+func LimitConnections(listener net.Listener, limit int) net.Listener {
 	if limit <= 0 {
-		limit = defaultMaxConnections
+		limit = DefaultMaxConnections
 	}
 	return &limitedListener{Listener: listener, slots: make(chan struct{}, limit), done: make(chan struct{})}
 }

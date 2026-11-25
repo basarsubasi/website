@@ -28,7 +28,6 @@ const (
 	uploadPhotoPath                  = "/api/admin/images"
 	concurrencyTestContentTypeHeader = "Content-Type"
 	multipartContentType             = "multipart/form-data; boundary=test"
-	uploadOverloadFormat             = "upload overload: %d"
 	rejectedBodyReadMessage          = "rejected upload body was read"
 	listPostsPath                    = "/api/posts"
 	authBypassFormat                 = "authentication bypassed: %d"
@@ -53,7 +52,7 @@ func TestConcurrencyRejectsWithoutQueuingAndRecovers(t *testing.T) {
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
-	handler := limitConcurrency(limit, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := make(concurrencyLimit, limit).wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		entered <- struct{}{}
 		<-release
 		w.WriteHeader(http.StatusNoContent)
@@ -89,7 +88,7 @@ func TestConcurrencyRejectsWithoutQueuingAndRecovers(t *testing.T) {
 }
 
 func TestConcurrencyReleasesAfterPanic(t *testing.T) {
-	handler := limitConcurrency(1, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := make(concurrencyLimit, 1).wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == panicPath {
 			panic(panicMessage)
 		}
@@ -137,18 +136,20 @@ func TestUploadLimitBeforeBodyReadAndGeneralRequestLimit(t *testing.T) {
 	done := make(chan struct{})
 	go func() { defer close(done); c.handler.ServeHTTP(httptest.NewRecorder(), req) }()
 	awaitSignal(t, body.entered)
-	// The second upload never gets as far as reading its body.
+	// Both upload routes share the occupied slot and reject before reading the body.
 	rejectedBody := &blockedBody{entered: make(chan struct{}), release: body.release}
 	rejectionDone := make(chan struct{})
 	go func() {
 		defer close(rejectionDone)
-		req := httptest.NewRequest(concurrencyTestPostMethod, uploadPhotoPath, rejectedBody)
-		req.Header.Set(concurrencyTestContentTypeHeader, multipartContentType)
-		req.AddCookie(c.cookie)
-		res := httptest.NewRecorder()
-		c.handler.ServeHTTP(res, req)
-		if res.Code != 503 {
-			t.Errorf(uploadOverloadFormat, res.Code)
+		for _, path := range []string{uploadPhotoPath, uploadPath} {
+			req := httptest.NewRequest(concurrencyTestPostMethod, path, rejectedBody)
+			req.Header.Set(concurrencyTestContentTypeHeader, multipartContentType)
+			req.AddCookie(c.cookie)
+			res := httptest.NewRecorder()
+			c.handler.ServeHTTP(res, req)
+			if res.Code != http.StatusServiceUnavailable || res.Header().Get(concurrencyTestRetryAfterHeader) != retryDelaySeconds {
+				t.Errorf(overloadResponseFormat, res.Code, res.Header())
+			}
 		}
 	}()
 	awaitSignal(t, rejectionDone)
@@ -181,4 +182,5 @@ func TestUploadLimitBeforeBodyReadAndGeneralRequestLimit(t *testing.T) {
 	awaitSignal(t, loginDone)
 	c.request(concurrencyTestGetMethod, concurrencyTestHealthPath, nil, 200)
 	c.request(concurrencyTestPostMethod, uploadPhotoPath, nil, 400)
+	c.request(concurrencyTestPostMethod, uploadPath, nil, 400)
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/basarsubasi/website/internal/platform/httpserver"
 	"github.com/basarsubasi/website/internal/shared/domain"
 )
 
@@ -182,12 +183,24 @@ func (m *Objects) Keys() []string {
 
 // S3Server implements the GET/PUT/DELETE subset used by the real AWS adapter.
 func S3Server(objects *Objects) *httptest.Server {
-	return httptest.NewServer(s3Handler(objects))
+	return startS3Server(s3Handler(objects))
 }
 
 // S3BucketsServer isolates objects by bucket, including catalog.json.
 func S3BucketsServer(buckets map[string]*Objects) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return startS3Server(S3BucketsHandler(buckets))
+}
+
+func startS3Server(handler http.Handler) *httptest.Server {
+	server := httptest.NewUnstartedServer(handler)
+	server.Config = httpserver.New(server.Listener.Addr().String(), handler)
+	server.Listener = httpserver.LimitConnections(server.Listener, httpserver.DefaultMaxConnections)
+	server.Start()
+	return server
+}
+
+func S3BucketsHandler(buckets map[string]*Objects) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bucket, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, keySeparator), keySeparator)
 		objects, ok := buckets[bucket]
 		if !ok {
@@ -195,7 +208,7 @@ func S3BucketsServer(buckets map[string]*Objects) *httptest.Server {
 			return
 		}
 		s3Handler(objects).ServeHTTP(w, r)
-	}))
+	})
 }
 
 func s3Handler(objects *Objects) http.Handler {
