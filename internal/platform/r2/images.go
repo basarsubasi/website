@@ -80,12 +80,15 @@ func (r *Repository) DeleteImage(ctx context.Context, id string) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 	return r.mutate(ctx, func(next *catalog) error {
-		photo, exists := next.Images[id]
+		image, exists := next.Images[id]
 		if !exists {
 			return domain.ErrNotFound
 		}
 		delete(next.Images, id)
-		next.Garbage = append(next.Garbage, photo.ObjectKey)
+		next.Garbage = append(next.Garbage, image.ObjectKey)
+		if image.PreviewURL != r2EmptyString {
+			next.Garbage = append(next.Garbage, photo.PreviewKey(id))
+		}
 		return nil
 	})
 }

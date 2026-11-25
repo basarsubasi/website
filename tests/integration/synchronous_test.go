@@ -162,12 +162,14 @@ func TestUnconfirmedPhotoBackupDoesNotDeleteUploadedObject(t *testing.T) {
 	service := photos.New(repo.gallery, objects)
 	raw, _ := base64.StdEncoding.DecodeString(onePixelPNGBase64)
 	objects.FailNext(metadataOperation, errR2Unavailable)
-	photo, err := service.UploadImage(ctx, photo.PhotoInput{Color: synchronousTestBlackAndWhite}, bytes.NewReader(raw), int64(len(raw)))
+	uploaded, err := service.UploadImage(ctx, photo.PhotoInput{Color: synchronousTestBlackAndWhite}, bytes.NewReader(raw), int64(len(raw)))
 	if !errors.Is(err, domain.ErrUncertain) {
 		t.Fatal(err)
 	}
-	if _, _, err := objects.Read(ctx, photo.ObjectKey); err != nil {
-		t.Fatal(prematureCleanupFailure, err)
+	for _, key := range []string{uploaded.ObjectKey, photo.PreviewKey(uploaded.UUID)} {
+		if _, _, err := objects.Read(ctx, key); err != nil {
+			t.Fatal(prematureCleanupFailure, key, err)
+		}
 	}
 	if count, err := repo.PendingBackups(ctx); err != nil || count != 1 {
 		t.Fatal(count, err)
@@ -176,7 +178,7 @@ func TestUnconfirmedPhotoBackupDoesNotDeleteUploadedObject(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored := open(t, filepath.Join(t.TempDir(), synchronousTestRestoredFilename), r2.NewBackup(objects))
-	if got, err := restored.gallery.GetImage(ctx, photo.UUID); err != nil || got != photo {
+	if got, err := restored.gallery.GetImage(ctx, uploaded.UUID); err != nil || got != uploaded {
 		t.Fatal(got, err)
 	}
 }

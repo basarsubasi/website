@@ -89,7 +89,11 @@ func (b *Backup) RemoveImage(ctx context.Context, p photo.Image) error {
 	}
 	err = repo.DeleteImage(ctx, p.UUID)
 	if errors.Is(err, domain.ErrNotFound) {
-		return b.objects.Delete(ctx, p.ObjectKey)
+		originalErr := b.objects.Delete(ctx, p.ObjectKey)
+		if p.PreviewURL != r2EmptyString {
+			return errors.Join(originalErr, b.objects.Delete(ctx, photo.PreviewKey(p.UUID)))
+		}
+		return originalErr
 	}
 	return err
 }

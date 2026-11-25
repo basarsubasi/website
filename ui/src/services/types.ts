@@ -10,6 +10,7 @@ export interface Photo extends PhotoInput {
   height?: number;
   uuid: string;
   image_url: string;
+  preview_url: string;
   object_key: string;
   file_type: string;
   created_at: string;

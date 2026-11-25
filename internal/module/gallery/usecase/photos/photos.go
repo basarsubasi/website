@@ -1,6 +1,7 @@
 package photos
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -39,19 +40,36 @@ func (u *UseCase) UploadImage(ctx context.Context, p photo.PhotoInput, file io.R
 	key := objectKeyPrefix + id + extensionSeparator + info.Extension
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
-	imageURL, err := u.photos.Put(ctx, key, file, size, info.ContentType, metadata)
+	preview, err := RenderPreview(ctx, file, info)
 	if err != nil {
+		return photo.Image{}, err
+	}
+	previewKey := photo.PreviewKey(id)
+	previewURL, err := u.photos.Put(ctx, previewKey, bytes.NewReader(preview), int64(len(preview)), previewContentType, nil)
+	if err != nil {
+		u.cleanupUpload(ctx, previewKey)
 		return photo.Image{}, &domain.StorageError{Operation: uploadOperation, Err: err}
 	}
-	photo, err := u.repo.CreateImage(ctx, photo.Image{Width: info.Width, Height: info.Height, UUID: id, ImageURL: imageURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: info.ContentType, Color: p.Color})
+	imageURL, err := u.photos.Put(ctx, key, file, size, info.ContentType, metadata)
+	if err != nil {
+		u.cleanupUpload(ctx, key, previewKey)
+		return photo.Image{}, &domain.StorageError{Operation: uploadOperation, Err: err}
+	}
+	photo, err := u.repo.CreateImage(ctx, photo.Image{Width: info.Width, Height: info.Height, UUID: id, ImageURL: imageURL, PreviewURL: previewURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: info.ContentType, Color: p.Color})
 	if err != nil && !errors.Is(err, domain.ErrUncertain) {
-		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-		defer cancel()
-		if cleanupErr := u.photos.Delete(cleanup, key); cleanupErr != nil {
-			log.Printf(cleanupFailureFormat, key, cleanupErr)
-		}
+		u.cleanupUpload(ctx, key, previewKey)
 	}
 	return photo, err
+}
+
+func (u *UseCase) cleanupUpload(ctx context.Context, keys ...string) {
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cancel()
+	for _, key := range keys {
+		if err := u.photos.Delete(cleanup, key); err != nil {
+			log.Printf(cleanupFailureFormat, key, err)
+		}
+	}
 }
 
 func (u *UseCase) UpdateImage(ctx context.Context, id string, p photo.PhotoInput) (photo.Image, error) {

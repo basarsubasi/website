@@ -300,8 +300,12 @@ test("CSP blocks external images in previously saved posts", async ({ page }) =>
 
 test("image loading priorities and dimensions reserve space before downloads", async ({ page, baseURL }) => {
   await page.route("**/test-assets/*.png", route => route.abort());
+  const originalRequests: string[] = [];
+  page.on("request", request => {
+    if (request.url().includes("/test-assets/") && request.url().endsWith(".png")) originalRequests.push(request.url());
+  });
   const photos = Array.from({ length: 9 }, (_, index) => ({
-    uuid: `photo-${index}`, image_url: new URL(`/test-assets/${index}.png`, baseURL).href,
+    uuid: `photo-${index}`, preview_url: new URL(`/test-assets/preview-${index}.webp`, baseURL).href, image_url: new URL(`/test-assets/${index}.png`, baseURL).href,
     width: 1200, height: 800, name: `Photo ${index}`, color: "color",
   }));
   await page.route("**/api/images?*", route => route.fulfill({ json: { data: photos, total: 9 } }));
@@ -309,13 +313,16 @@ test("image loading priorities and dimensions reserve space before downloads", a
   const thumbnails = page.locator(".grid img");
   await expect(thumbnails).toHaveCount(9);
   for (let index = 0; index < 9; index++) {
+    await expect(thumbnails.nth(index)).toHaveAttribute("src", photos[index].preview_url);
     await expect(thumbnails.nth(index)).toHaveAttribute("loading", index < 3 ? "eager" : "lazy");
     await expect(thumbnails.nth(index)).toHaveAttribute("decoding", "async");
   }
   await expect(thumbnails.first()).toHaveAttribute("fetchpriority", "high");
   await page.route("**/api/images/photo-0", route => route.fulfill({ json: { data: photos[0] } }));
+  expect(originalRequests).toHaveLength(0);
   await thumbnails.first().click();
   const main = page.locator(".single-image-page img");
+  await expect(main).toHaveAttribute("src", photos[0].image_url);
   await expect(main).toHaveAttribute("fetchpriority", "high");
   await expect(main).toHaveAttribute("loading", "eager");
   await expect(main).toHaveAttribute("width", "1200");
@@ -509,12 +516,12 @@ for (const kind of ["photo", "post"] as const) {
 }
 
 test("home shows photos and unloaded images never show fallback names", async ({ page, baseURL }) => {
-  const photo = { uuid: "pending", image_url: new URL("/test-assets/pending.png", baseURL).href, name: "Name must not flash", width: 1200, height: 800, color: "bw" };
+  const photo = { uuid: "pending", preview_url: new URL("/test-assets/pending-preview.webp", baseURL).href, image_url: new URL("/test-assets/pending.png", baseURL).href, name: "Name must not flash", width: 1200, height: 800, color: "bw" };
   await page.route("**/api/images?*", route => route.fulfill({ json: { data: [photo], total: 1 } }));
   await page.route("**/api/images/pending", route => route.fulfill({ json: { data: photo } }));
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route(photo.image_url, async route => {
+  await page.route(photo.preview_url, async route => {
     await gate;
     await route.fulfill({ contentType: "image/png", body: png });
   });
@@ -526,7 +533,8 @@ test("home shows photos and unloaded images never show fallback names", async ({
   release();
   await expect(thumbnail).toHaveCSS("opacity", "1");
   // Failed downloads remain blank, including on the single-photo page.
-  await page.unroute(photo.image_url);
+  await page.unroute(photo.preview_url);
+  await page.route(photo.preview_url, route => route.abort());
   await page.route(photo.image_url, route => route.abort());
   await goto(page, "/photo/pending");
   await expect(page.locator(".single-image-page img")).toHaveCSS("opacity", "0");

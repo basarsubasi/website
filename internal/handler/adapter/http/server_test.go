@@ -74,6 +74,9 @@ const (
 	restartDataFailure     = "data lost on reboot"
 	serverTestDeleteMethod = "DELETE"
 	retainedObjectFailure  = "object retained after delete"
+	galleryPreviewFailure  = "missing or invalid gallery preview"
+	changedOriginalFailure = "stored original differs from the uploaded bytes"
+	webpFormat             = "webp"
 
 	firstSlug                = "first"
 	firstTitle               = "First"
@@ -271,7 +274,20 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 	input := galleryphoto.PhotoInput{Name: originalPhotoName, City: originalCity, Country: originalCountry, YearTaken: 2025, Color: blackAndWhite}
 	c.upload(input, pngBytes(t), 401)
 	c.login()
-	photo := item[galleryphoto.Image](t, c.upload(input, pngBytes(t), 201))
+	original := pngBytes(t)
+	photo := item[galleryphoto.Image](t, c.upload(input, original, 201))
+	key := galleryphoto.PreviewKey(photo.UUID)
+	if raw, _, err := c.objects.Read(t.Context(), photo.ObjectKey); err != nil || !bytes.Equal(raw, original) {
+		t.Fatal(changedOriginalFailure, err)
+	}
+	raw, _, err := c.objects.Read(t.Context(), key)
+	if err != nil || photo.PreviewURL == responseEmptyString || photo.PreviewURL == photo.ImageURL {
+		t.Fatal(galleryPreviewFailure, err)
+	}
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || format != webpFormat || cfg.Width != photo.Width || cfg.Height != photo.Height {
+		t.Fatal(galleryPreviewFailure, err)
+	}
 	assertV4(t, photo.UUID)
 	if photo.FileType != pngContentType {
 		t.Fatal(trustedFilenameFailure)
@@ -292,7 +308,7 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 	c.request(putMethod, adminImagePathPrefix+photo.UUID, input, 200)
 	c.restart()
 	got := item[galleryphoto.Image](t, c.request(serverTestGetMethod, publicImagePathPrefix+photo.UUID, nil, 200))
-	if got.Name != updatedPhotoName {
+	if got.Name != updatedPhotoName || got.PreviewURL != photo.PreviewURL {
 		t.Fatal(restartDataFailure)
 	}
 	c.request(serverTestDeleteMethod, adminImagePathPrefix+photo.UUID, nil, 401)
@@ -302,8 +318,10 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 	if err := c.repo.SyncBackups(context.Background(), c.backup); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := c.objects.Read(context.Background(), photo.ObjectKey); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatal(retainedObjectFailure)
+	for _, key := range []string{photo.ObjectKey, key} {
+		if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
+			t.Fatal(retainedObjectFailure, key)
+		}
 	}
 }
 func TestBlogAPIAndDraftVisibility(t *testing.T) {

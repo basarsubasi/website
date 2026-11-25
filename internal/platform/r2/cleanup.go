@@ -5,6 +5,8 @@ import (
 	"log"
 	"slices"
 	"time"
+
+	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 )
 
 const (
@@ -48,7 +50,7 @@ func (state catalog) references(key string) bool {
 		return true
 	}
 	for _, image := range state.Images {
-		if image.ObjectKey == key {
+		if image.ObjectKey == key || (image.PreviewURL != r2EmptyString && photo.PreviewKey(image.UUID) == key) {
 			return true
 		}
 	}

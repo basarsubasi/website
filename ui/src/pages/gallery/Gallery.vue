@@ -51,7 +51,7 @@ watch(
           :to="`/photo/${image.uuid}`"
           class="grid-item"
           ><img
-            :src="image.image_url"
+            :src="image.preview_url"
             class="public-photo"
             :class="{ 'is-loaded': loadedImages.has(image.uuid) }"
             @load="loadedImages.add(image.uuid)"
