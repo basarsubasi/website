@@ -61,6 +61,9 @@ const (
 	expectedMethods            = "PUT,PUT,DELETE"
 
 	r2TestNoStorePolicy   = "no-store"
+	cachedVideoPath       = "/bucket/videos/test.mp4"
+	blogVideoKey          = "videos/test.mp4"
+	videoMime             = "video/mp4"
 	cachedImagePath       = "/bucket/images/test.png"
 	cachePolicyFormat     = "%s cache policy = %q; want %q"
 	cacheTestBucket       = "bucket"
@@ -105,10 +108,10 @@ func TestR2S3Requests(t *testing.T) {
 	}
 }
 
-func TestR2CachePolicyOnlyAppliesToImages(t *testing.T) {
+func TestR2CachePolicyForPublicMedia(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		want := r2TestNoStorePolicy
-		if r.URL.Path == cachedImagePath {
+		if r.URL.Path == cachedImagePath || r.URL.Path == cachedVideoPath {
 			want = r2TestImmutableCachePolicy
 		}
 		if got := r.Header.Get(cacheControlHeader); got != want {
@@ -123,7 +126,7 @@ func TestR2CachePolicyOnlyAppliesToImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range []struct{ key, mime string }{
-		{blogImageKey, pngContentType}, {jsonImageKey, r2TestJsonContentType},
+		{blogImageKey, pngContentType}, {blogVideoKey, videoMime}, {jsonImageKey, r2TestJsonContentType},
 		{postVersionKey, r2TestJsonContentType}, {r2TestCatalogPartKey, r2TestJsonContentType},
 	} {
 		if _, err := store.Put(context.Background(), item.key, strings.NewReader(originalContents), 8, item.mime, nil); err != nil {

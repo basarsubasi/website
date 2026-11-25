@@ -33,6 +33,7 @@ const (
 	pathSeparator             = "/"
 
 	photoKeyPrefix       = "photos/"
+	blogVideoKeyPrefix   = "videos/"
 	blogImageKeyPrefix   = "images/"
 	imageMediaTypePrefix = "image/"
 	immutableCachePolicy = "public, max-age=31536000, immutable"
@@ -102,9 +103,12 @@ func New(cfg Config) (*R2, error) {
 
 func (r *R2) PublicOrigin() media.Origin { return r.publicOrigin }
 
-// Image uploads have unique keys and their bytes never change. Metadata edits
+// Media uploads have unique keys and their bytes never change. Metadata edits
 // must preserve this policy; catalogs and post backups must not inherit it.
 func objectCacheControl(key, contentType string) string {
+	if strings.HasPrefix(key, blogVideoKeyPrefix) && contentType == media.VideoContentType {
+		return immutableCachePolicy
+	}
 	if (strings.HasPrefix(key, photoKeyPrefix) || strings.HasPrefix(key, blogImageKeyPrefix)) && strings.HasPrefix(contentType, imageMediaTypePrefix) {
 		return immutableCachePolicy
 	}

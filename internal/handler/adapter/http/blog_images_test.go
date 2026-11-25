@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,9 +15,13 @@ import (
 )
 
 const (
+	videoUploadPath                 = "/api/admin/blog/videos"
+	videoClipFixture                = "../../../../tests/testdata/blog-clip.mp4"
+	clipFilename                    = "clip.mp4"
+	invalidDeleteVideo              = "/api/admin/blog/videos/catalog.json"
+	videoObjectMismatch             = "stored video differs from uploaded bytes"
 	imageField                      = "image"
 	uploadFilename                  = "photo.png"
-	blogImagesTestPostMethod        = "POST"
 	uploadPath                      = "/api/admin/blog/images"
 	blogImagesTestContentTypeHeader = "Content-Type"
 	blogImagesTestDeleteMethod      = "DELETE"
@@ -34,17 +40,7 @@ const (
 func TestBlogImageUpload(t *testing.T) {
 	c := setup(t)
 	upload := func(raw []byte, status int) *httptest.ResponseRecorder {
-		var body bytes.Buffer
-		form := multipart.NewWriter(&body)
-		file, err := form.CreateFormFile(imageField, uploadFilename)
-		if err != nil {
-			t.Fatal(err)
-		}
-		file.Write(raw)
-		form.Close()
-		req := httptest.NewRequest(blogImagesTestPostMethod, uploadPath, &body)
-		req.Header.Set(blogImagesTestContentTypeHeader, form.FormDataContentType())
-		return c.do(req, status)
+		return c.uploadBlogFile(t, uploadPath, imageField, uploadFilename, raw, status)
 	}
 	c.request(blogImagesTestDeleteMethod, missingImagePath, nil, 401)
 	upload(pngBytes(t), 401)
@@ -72,4 +68,49 @@ func TestBlogImageUpload(t *testing.T) {
 		t.Fatalf(failedDeletionFormat, err)
 	}
 
+}
+
+func TestBlogVideoUploadAndDelete(t *testing.T) {
+	raw, err := os.ReadFile(videoClipFixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := setup(t)
+	upload := func(raw []byte, status int) *httptest.ResponseRecorder {
+		return c.uploadBlogFile(t, videoUploadPath, videoFormField, clipFilename, raw, status)
+	}
+	upload(raw, http.StatusUnauthorized)
+	c.request(http.MethodDelete, invalidDeleteVideo, nil, http.StatusUnauthorized)
+	c.login()
+	c.request(http.MethodDelete, invalidDeleteVideo, nil, http.StatusBadRequest)
+	upload(pngBytes(t), http.StatusBadRequest)
+	result := item[struct{ URL string }](t, upload(raw, http.StatusCreated))
+	key := strings.TrimPrefix(result.URL, bucketBaseURL)
+	got, _, err := c.objects.Read(t.Context(), key)
+	if err != nil || !bytes.Equal(raw, got) {
+		t.Fatal(videoObjectMismatch, err)
+	}
+	c.request(http.MethodDelete, adminBlogPathPrefix+key, nil, http.StatusNoContent)
+	if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf(failedDeletionFormat, err)
+	}
+}
+
+func (c *client) uploadBlogFile(t *testing.T, endpoint, field, filename string, raw []byte, status int) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	file, err := form.CreateFormFile(field, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := form.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, endpoint, &body)
+	req.Header.Set(blogImagesTestContentTypeHeader, form.FormDataContentType())
+	return c.do(req, status)
 }

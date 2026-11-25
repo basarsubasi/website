@@ -33,6 +33,8 @@ const (
 	updatePhotoRoute         = "PUT /api/admin/images/{uuid}"
 	movePhotoRoute           = "POST /api/admin/images/{uuid}/move"
 	deletePhotoRoute         = "DELETE /api/admin/images/{uuid}"
+	deleteBlogVideoRoute     = "DELETE /api/admin/blog/videos/{filename}"
+	uploadBlogVideoRoute     = "POST /api/admin/blog/videos"
 	deleteBlogImageRoute     = "DELETE /api/admin/blog/images/{filename}"
 	uploadBlogImageRoute     = "POST /api/admin/blog/images"
 	createPostRoute          = "POST /api/admin/posts"
@@ -105,6 +107,8 @@ func New(gallery *gallery.Module, blog *blog.Module, health func(context.Context
 	adminMux.HandleFunc(updatePhotoRoute, s.saveImage)
 	adminMux.HandleFunc(movePhotoRoute, s.moveImage)
 	adminMux.HandleFunc(deletePhotoRoute, s.deleteImage)
+	adminMux.HandleFunc(deleteBlogVideoRoute, s.deleteBlogVideo)
+	adminMux.Handle(uploadBlogVideoRoute, uploads.wrap(http.HandlerFunc(s.uploadBlogVideo)))
 	adminMux.HandleFunc(deleteBlogImageRoute, s.deleteBlogImage)
 	adminMux.Handle(uploadBlogImageRoute, uploads.wrap(http.HandlerFunc(s.uploadBlogImage)))
 	adminMux.HandleFunc(createPostRoute, s.savePost)

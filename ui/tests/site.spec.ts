@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { expect, type Page } from "@playwright/test";
 import { goto, reload, test } from "./coverage";
 
@@ -224,7 +225,7 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
   await page.getByLabel("Başlık", { exact: true }).fill("Image journal");
   await page.getByLabel("İçerik", { exact: true }).fill("Before the image.");
-  await page.locator('.post-editor input[type="file"]').setInputFiles({ name: "blog.png", mimeType: "image/png", buffer: png });
+  await page.locator('#blog-image-file').setInputFiles({ name: "blog.png", mimeType: "image/png", buffer: png });
   const figure = page.locator(".tiptap figure");
   await expect(figure.locator("img")).toHaveAttribute("src", /\/blog\/images\/[^/]+$/);
   await expect(figure.locator("img")).toHaveJSProperty("naturalWidth", 1);
@@ -281,6 +282,61 @@ test("blog images retain width and captions after saving", async ({ page }) => {
   await expect(page.locator("figure")).toHaveCount(0);
 });
 
+
+test("blog video plays from storage, retains its caption, and deletes only after storage confirms", async ({ page }) => {
+  await login(page);
+  const posts = page.getByRole("button", { name: "Blog yazıları", exact: true });
+  await posts.click();
+  await page.getByRole("button", { name: "Yeni yazı", exact: true }).click();
+  await page.getByLabel("Başlık", { exact: true }).fill("Video journal");
+  const picker = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Video ekle", exact: true }).click();
+  await (await picker).setFiles(fileURLToPath(new URL("../../tests/testdata/blog-clip.mp4", import.meta.url)));
+  const figure = page.locator(".tiptap figure[data-blog-video]");
+  const clip = figure.locator("video");
+  await expect(clip).toHaveAttribute("src", /\/blog\/videos\/[^/]+\.mp4$/);
+  const src = (await clip.getAttribute("src"))!;
+  await figure.locator("figcaption").click();
+  await page.keyboard.insertText("Akşam yürüyüşü.");
+  await page.getByRole("button", { name: "Yazı ayarları" }).click();
+  await page.getByLabel("Durum").selectOption("1");
+  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+
+  await goto(page, "/blog/video-journal");
+  const player = page.locator("article video");
+  await expect(player).toHaveJSProperty("controls", true);
+  await expect(player).toHaveJSProperty("videoWidth", 64);
+  await expect(page.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
+  await player.evaluate(async (el: HTMLVideoElement) => { el.muted = true; await el.play(); });
+  await expect.poll(() => player.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeGreaterThan(0);
+  const range = await page.request.get(src, { headers: { Range: "bytes=0-15" } });
+  expect(range.status()).toBe(206);
+  expect(range.headers()["content-type"]).toBe("video/mp4");
+
+  await goto(page, "/admin");
+  await posts.click();
+  await page.getByRole("listitem").filter({ hasText: "Video journal" }).getByRole("button", { name: "Düzenle", exact: true }).click();
+  await expect(figure.locator("figcaption")).toHaveText("Akşam yürüyüşü.");
+  await clip.click();
+  const remove = page.getByRole("button", { name: "Videoyu sil", exact: true });
+  await page.route("**/api/admin/blog/videos/*", route => route.fulfill({ status: 503, json: { error: "Storage unavailable" } }));
+  await remove.click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(clip).toBeVisible();
+  await page.unroute("**/api/admin/blog/videos/*");
+  await remove.click();
+  await expect(clip).toHaveCount(0);
+  expect((await page.request.get(src)).status()).toBe(404);
+  await page.getByLabel("İçerik", { exact: true }).press("ControlOrMeta+z");
+  await expect(clip).toHaveCount(0);
+  await page.getByLabel("İçerik", { exact: true }).fill("Yürüyüş notları.");
+  await page.getByRole("button", { name: "Yazıyı kaydet" }).click();
+  await expect(page.getByText("Yazı kaydedildi.", { exact: true })).toBeVisible();
+  await goto(page, "/blog/video-journal");
+  await expect(page.locator("article video")).toHaveCount(0);
+  await expect(page.locator(".post-body p")).toHaveText("Yürüyüş notları.");
+});
 
 test("CSP blocks external images in previously saved posts", async ({ page }) => {
   const src = "https://external.example.invalid/photo.png";

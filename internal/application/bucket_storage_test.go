@@ -89,7 +89,7 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blogImage, err := app.Blog.Images.UploadBlogImage(ctx, bytes.NewReader(data.Bytes()), int64(data.Len()))
+	blogImage, err := app.Blog.Assets.UploadBlogImage(ctx, bytes.NewReader(data.Bytes()), int64(data.Len()))
 	if err != nil {
 		t.Fatal(err)
 	}

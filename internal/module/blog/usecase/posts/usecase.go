@@ -18,9 +18,9 @@ type Repository interface {
 
 type UseCase struct {
 	repo        Repository
-	imageOrigin media.Origin
+	assetOrigin media.Origin
 }
 
-func New(repo Repository, imageOrigin media.Origin) *UseCase {
-	return &UseCase{repo: repo, imageOrigin: imageOrigin}
+func New(repo Repository, assetOrigin media.Origin) *UseCase {
+	return &UseCase{repo: repo, assetOrigin: assetOrigin}
 }

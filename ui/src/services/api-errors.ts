@@ -1,5 +1,10 @@
 // Keep API error strings separate from the text shown in the Turkish UI.
 const messages: Record<string, string> = {
+  "Upload an MP4 with H.264 video and optional AAC audio": "H.264 video ve varsa AAC ses içeren bir MP4 dosyası yükleyin.",
+  "Video must be at most 25 MiB": "Video en fazla 25 MiB olabilir.",
+  "Video file is required": "Bir video dosyası seçin.",
+  "Provide exactly one video file": "Tek bir video dosyası seçin.",
+  "Use videos uploaded to the configured blog asset origin": "Yazıda yalnızca blog için yüklenen videoları kullanabilirsiniz.",
   "Invalid rich-text post body": "Yazı içeriği okunamadı. Biçimlendirmeyi kontrol edin.",
   "Use images uploaded to the configured blog asset origin": "Yazıda yalnızca blog için yüklenen görselleri kullanabilirsiniz.",
   "Invalid password": "Şifre yanlış.",
@@ -14,6 +19,8 @@ const messages: Record<string, string> = {
   "Content changed or identifier already exists; reload and retry": "İçerik değişmiş veya bu bağlantı zaten kullanılıyor. Sayfayı yenileyip tekrar deneyin.",
   "Write outcome is uncertain; reload before retrying": "İşlemin tamamlanıp tamamlanmadığı doğrulanamadı. Tekrar denemeden önce sayfayı yenileyin.",
   "Operation failed": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
+  "could not upload video in object storage": "Video depolama hizmetine yüklenemedi.",
+  "could not delete blog video in object storage": "Video depolama hizmetinden silinemedi.",
   "could not upload photo in object storage": "Fotoğraf depolama hizmetine yüklenemedi.",
   "could not synchronize pending changes in object storage": "Bekleyen değişiklikler depolama hizmetine kaydedilemedi. Lütfen biraz sonra tekrar deneyin.",
   "could not write post in object storage": "Yazı depolama hizmetine kaydedilemedi.",

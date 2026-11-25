@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	trustedVideo        = "https://images.example.com/videos/00000000-0000-0000-0000-000000000001.mp4"
+	videoPostFormat     = `blog-content-v1:[{"type":"blogVideo","attrs":{"src":%q}}]`
 	imagePostSlug       = "image-policy"
 	imagePostTitle      = "Image policy"
 	imagePostFormat     = `blog-content-v1:[{"type":"blogImage","attrs":{"src":%q}}]`
@@ -31,6 +33,7 @@ const (
 	blogBase            = "https://blog.example.com/assets"
 	wildcardBase        = "https://*.example.com"
 	wildcardAccepted    = "accepted a wildcard as an image origin"
+	expectedVideo       = "; media-src https://blog.example.com"
 	expectedImages      = "img-src 'self' blob: https://photos.example.com https://blog.example.com"
 	unexpectedPolicy    = "unexpected content security policy: %s"
 )
@@ -59,6 +62,21 @@ func TestSavePostChecksImageOriginBeforeWriting(t *testing.T) {
 	c.request(http.MethodPut, postUpdatePrefix+saved.ID, post, http.StatusOK)
 }
 
+func TestSavePostChecksVideoOrigin(t *testing.T) {
+	c := setup(t)
+	c.login()
+	post := article.PostInput{Title: imagePostTitle, Slug: imagePostSlug, Published: 1, Body: fmt.Sprintf(videoPostFormat, trustedVideo)}
+	saved := item[article.Post](t, c.request(http.MethodPost, serverTestAdminPostsPath, post, http.StatusCreated))
+	for _, src := range []string{otherImage, trustedImage} {
+		post.Body = fmt.Sprintf(videoPostFormat, src)
+		c.request(http.MethodPut, postUpdatePrefix+saved.ID, post, http.StatusBadRequest)
+	}
+	got := item[article.Post](t, c.request(http.MethodGet, publicImagePostPath, nil, http.StatusOK))
+	if got.Body != saved.Body {
+		t.Fatal(saveChangedBody)
+	}
+}
+
 func TestCSPUsesOnlyConfiguredImageOrigins(t *testing.T) {
 	photos, err := media.ParseOrigin(photoBase)
 	if err != nil {
@@ -68,7 +86,7 @@ func TestCSPUsesOnlyConfiguredImageOrigins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy := contentSecurityPolicy(photos, blog); !strings.HasSuffix(policy, expectedImages) {
+	if policy := contentSecurityPolicy(photos, blog); !strings.HasSuffix(policy, expectedImages+expectedVideo) {
 		t.Fatalf(unexpectedPolicy, policy)
 	}
 	if _, err := media.ParseOrigin(wildcardBase); err == nil {

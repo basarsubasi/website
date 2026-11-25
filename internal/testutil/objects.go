@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/basarsubasi/website/internal/platform/httpserver"
 	"github.com/basarsubasi/website/internal/shared/domain"
@@ -220,7 +221,7 @@ func s3Handler(objects *Objects) http.Handler {
 		}
 		key := parts[1]
 		switch r.Method {
-		case getMethod:
+		case getMethod, http.MethodHead:
 			raw, etag, err := objects.Read(r.Context(), key)
 			if err != nil {
 				writeS3Error(w, err)
@@ -231,7 +232,7 @@ func s3Handler(objects *Objects) http.Handler {
 			contentType := objects.items[key].contentType
 			objects.mu.Unlock()
 			w.Header().Set(contentTypeHeader, contentType)
-			w.Write(raw)
+			http.ServeContent(w, r, key, time.Time{}, bytes.NewReader(raw))
 		case putMethod:
 			if source := r.Header.Get(copySourceHeader); source != emptyString {
 				objects.serveCopy(w, r, key, source)

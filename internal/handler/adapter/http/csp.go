@@ -11,7 +11,8 @@ const (
 	// Tiptap uses inline styles. Scripts load only from the application origin.
 	// The site icon is local and the upload preview uses an object URL.
 	basePolicy      = "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self' blob:"
-	sourceSeparator = " "
+	blogMediaDirective = "; media-src "
+ sourceSeparator = " "
 )
 
 func contentSecurityPolicy(photos, blog media.Origin) string {
@@ -22,5 +23,9 @@ func contentSecurityPolicy(photos, blog media.Origin) string {
 	if blog != (media.Origin{}) && blog != photos {
 		sources = append(sources, blog.String())
 	}
-	return strings.Join(sources, sourceSeparator)
+	policy := strings.Join(sources, sourceSeparator)
+ if blog != (media.Origin{}) {
+ policy += blogMediaDirective + blog.String()
+ }
+ return policy
 }

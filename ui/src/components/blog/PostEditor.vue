@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { EditorContent, useEditor } from "@tiptap/vue-3";
 import { NodeSelection } from "@tiptap/pm/state";
-import { BlogImage } from "./blog-image";
-import { paragraphsToDocument, readPostBody, writePostBody } from "./post-content";
+import { BlogImage, BlogVideo } from "./blog-media";
+import { isMediaNode, type MediaNodeType, paragraphsToDocument, readPostBody, writePostBody } from "./post-content";
 import { api, message, send } from "../../services/api";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
@@ -31,53 +31,65 @@ const error = ref("");
 const titleField = ref<HTMLTextAreaElement>();
 const formElement = ref<HTMLFormElement>();
 
-const uploading = ref(false);
-const deletingImage = ref(false);
-watch(() => uploading.value || deletingImage.value || snapshot() !== initialForm,
+const uploading = ref<MediaNodeType | null>(null);
+const deletingMedia = ref(false);
+watch(() => !!uploading.value || deletingMedia.value || snapshot() !== initialForm,
   value => emit("dirty", value), { immediate: true, flush: "sync" });
-const deletedImages = new Set<string>();
+const deletedMedia = new Set<string>();
 const imageInput = ref<HTMLInputElement>();
-async function uploadImage(event: Event) {
+const videoInput = ref<HTMLInputElement>();
+const mediaSettings = {
+  blogImage: {
+    field: "image", folder: "images", width: "Görsel genişliği", remove: "Görseli sil",
+    deleteTitle: "Görseli kalıcı olarak sil", sizeError: "Görsel en fazla 25 MiB olabilir.",
+  },
+  blogVideo: {
+    field: "video", folder: "videos", width: "Video genişliği", remove: "Videoyu sil",
+    deleteTitle: "Videoyu kalıcı olarak sil", sizeError: "Video en fazla 25 MiB olabilir.",
+  },
+} as const;
+async function uploadMedia(event: Event, type: MediaNodeType) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file || !editor.value || props.busy || uploading.value || deletingImage.value) return;
-  if (file.size > 25 * 1024 * 1024) { error.value = "Görsel en fazla 25 MiB olabilir."; input.value = ""; return; }
+  if (!file || !editor.value || props.busy || uploading.value || deletingMedia.value) return;
+  const settings = mediaSettings[type];
+  if (file.size > 25 * 1024 * 1024) { error.value = settings.sizeError; input.value = ""; return; }
   const position = editor.value.state.selection.from;
-  uploading.value = true;
+  uploading.value = type;
   editor.value.setEditable(false, false);
   error.value = "";
   try {
     const data = new FormData();
-    data.append("image", file);
-    const result = await api<{ data: { url: string; width: number; height: number } }>("/admin/blog/images", { method: "POST", body: data });
-    editor.value.chain().focus().insertContentAt(position, [{ type: "blogImage", attrs: { src: result.data.url, width: 100, intrinsicWidth: result.data.width, intrinsicHeight: result.data.height } }, { type: "paragraph" }]).run();
+    data.append(settings.field, file);
+    const result = await api<{ data: { url: string; width: number; height: number } }>(`/admin/blog/${settings.folder}`, { method: "POST", body: data });
+    editor.value.chain().focus().insertContentAt(position, [{ type, attrs: { src: result.data.url, width: 100, intrinsicWidth: result.data.width, intrinsicHeight: result.data.height } }, { type: "paragraph" }]).run();
   } catch (err) { error.value = message(err); }
-  finally { uploading.value = false; editor.value?.setEditable(!props.busy, false); input.value = ""; }
+  finally { uploading.value = null; editor.value?.setEditable(!props.busy, false); input.value = ""; }
 }
-async function deleteImage(src: string) {
-  if (!editor.value || props.busy || uploading.value || deletingImage.value) return;
-  deletingImage.value = true;
+async function deleteMedia(type: MediaNodeType, src: string) {
+  if (!editor.value || props.busy || uploading.value || deletingMedia.value) return;
+  deletingMedia.value = true;
   editor.value.setEditable(false, false);
   error.value = "";
   try {
-    const path = new URL(src).pathname;
-    const filename = /\/images\/([^/]+)$/.exec(path)?.[1];
-    if (!filename) throw new Error("Bu görsel silinemiyor.");
-    await api("/admin/blog/images/" + encodeURIComponent(filename), send("DELETE"));
-    deletedImages.add(src);
+    const parts = new URL(src).pathname.split("/");
+    const filename = parts.pop();
+    if (!filename || parts.pop() !== mediaSettings[type].folder) throw new Error("Bu dosya silinemiyor.");
+    await api(`/admin/blog/${mediaSettings[type].folder}/${encodeURIComponent(filename)}`, send("DELETE"));
+    deletedMedia.add(src);
     const transaction = editor.value.state.tr;
     // Remove every occurrence of the deleted file in this draft.
     editor.value.state.doc.descendants((node, pos) => {
-      if (node.type.name === "blogImage" && node.attrs.src === src) {
+      if (node.type.name === type && node.attrs.src === src) {
         transaction.delete(transaction.mapping.map(pos), transaction.mapping.map(pos + node.nodeSize));
       }
     });
     editor.value.view.dispatch(transaction);
   } catch (err) { error.value = message(err); }
-  finally { deletingImage.value = false; editor.value?.setEditable(!props.busy, false); }
+  finally { deletingMedia.value = false; editor.value?.setEditable(!props.busy, false); }
 }
 const editor = useEditor({
-  extensions: [BlogImage.configure({ isDeleted: (src: string) => deletedImages.has(src) }), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
+  extensions: [...[BlogImage, BlogVideo].map(node => node.configure({ isDeleted: (src: string) => deletedMedia.has(src) })), Document, Paragraph, Text, HardBreak, UndoRedo, Placeholder.configure({ placeholder: "Yazmaya başlayın…" })],
   content: { type: "doc", content: readPostBody(form.body) },
   editable: !props.busy,
   editorProps: {
@@ -90,7 +102,7 @@ const editor = useEditor({
     handlePaste(_view, event) {
       const text = event.clipboardData?.getData("text/plain");
       if (!text) return false;
-      if (editor.value?.isActive("blogImage")) return false;
+      if (activeMedia.value) return false;
       editor.value?.commands.insertContent(paragraphsToDocument(text));
       return true;
     },
@@ -100,7 +112,12 @@ const editor = useEditor({
     error.value = "";
   },
 });
-watch(() => props.busy, (busy) => editor.value?.setEditable(!busy && !uploading.value && !deletingImage.value, false));
+const activeMedia = computed(() => {
+  if (editor.value?.isActive("blogVideo")) return "blogVideo";
+  if (editor.value?.isActive("blogImage")) return "blogImage";
+  return null;
+});
+watch(() => props.busy, (busy) => editor.value?.setEditable(!busy && !uploading.value && !deletingMedia.value, false));
 onMounted(() => { if (!props.post) titleField.value?.focus(); });
 
 function updateTitle(event: Event) {
@@ -120,7 +137,7 @@ function suggestSlug() {
       .replace(/^-|-$/g, "");
 }
 async function save() {
-  if (props.busy || uploading.value || deletingImage.value) return;
+  if (props.busy || uploading.value || deletingMedia.value) return;
   if (!form.title.trim()) {
     error.value = "Bir başlık yazın.";
     titleField.value?.focus();
@@ -131,7 +148,7 @@ async function save() {
     titleField.value?.focus();
     return;
   }
-  if (!editor.value?.getText().trim() && !editor.value?.getJSON().content?.some(node => node.type === "blogImage")) {
+  if (!editor.value?.getText().trim() && !editor.value?.getJSON().content?.some(node => isMediaNode(node.type))) {
     error.value = "Yazınızın içeriğini ekleyin.";
     editor.value?.commands.focus();
     return;
@@ -150,22 +167,25 @@ async function save() {
   <form ref="formElement" class="post-editor" lang="tr" spellcheck="false" novalidate @submit.prevent="save">
     <div class="post-editor-toolbar">
       <label for="blog-image-file" hidden>Yazıya eklenecek görsel</label>
-      <input id="blog-image-file" ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadImage" />
+      <input id="blog-image-file" ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadMedia($event, 'blogImage')" />
+      <label for="blog-video-file" hidden>Yazıya eklenecek video</label>
+      <input id="blog-video-file" ref="videoInput" type="file" accept="video/mp4,.mp4" hidden @change="uploadMedia($event, 'blogVideo')" />
       <span class="hint">{{ post ? "Yazıyı düzenle" : "Yeni yazı" }}</span>
       <div class="actions">
-        <button type="button" :disabled="busy || uploading || deletingImage" @click="imageInput?.click()">{{ uploading ? "Yükleniyor…" : "Görsel ekle" }}</button>
-        <button type="button" :disabled="busy || uploading || deletingImage" :aria-expanded="settingsOpen" aria-controls="post-settings" @click="settingsOpen = !settingsOpen">Yazı ayarları</button>
-        <button type="submit" :disabled="busy || uploading || deletingImage">Yazıyı kaydet</button>
-        <button type="button" :disabled="busy || uploading || deletingImage" @click="emit('cancel')">Vazgeç</button>
+        <button type="button" :disabled="busy || !!uploading || deletingMedia" @click="imageInput?.click()">{{ uploading === "blogImage" ? "Yükleniyor…" : "Görsel ekle" }}</button>
+        <button type="button" :disabled="busy || !!uploading || deletingMedia" title="MP4 · H.264 · AAC · En fazla 25 MiB" @click="videoInput?.click()">{{ uploading === "blogVideo" ? "Yükleniyor…" : "Video ekle" }}</button>
+        <button type="button" :disabled="busy || !!uploading || deletingMedia" :aria-expanded="settingsOpen" aria-controls="post-settings" @click="settingsOpen = !settingsOpen">Yazı ayarları</button>
+        <button type="submit" :disabled="busy || !!uploading || deletingMedia">Yazıyı kaydet</button>
+        <button type="button" :disabled="busy || !!uploading || deletingMedia" @click="emit('cancel')">Vazgeç</button>
       </div>
-      <div v-if="editor?.isActive('blogImage')" class="image-size-controls" aria-label="Görsel boyutu">
-        <span>Görsel genişliği</span>
-        <button v-for="width in [25, 50, 75, 100]" :key="width" type="button" :disabled="busy || uploading || deletingImage" :aria-pressed="editor.getAttributes('blogImage').width === width" @click="editor.chain().focus().updateAttributes('blogImage', { width }).run()">%{{ width }}</button>
-        <button type="button" class="image-delete-control" title="Görseli kalıcı olarak sil" :disabled="busy || uploading || deletingImage" @mousedown.prevent @click="deleteImage(editor.getAttributes('blogImage').src)">Görseli sil</button>
+      <div v-if="editor && activeMedia" class="image-size-controls" :aria-label="mediaSettings[activeMedia].width">
+        <span>{{ mediaSettings[activeMedia].width }}</span>
+        <button v-for="width in [25, 50, 75, 100]" :key="width" type="button" :disabled="busy || !!uploading || deletingMedia" :aria-pressed="editor.getAttributes(activeMedia).width === width" @click="editor.chain().focus().updateAttributes(activeMedia, { width }).run()">%{{ width }}</button>
+        <button type="button" class="image-delete-control" :title="mediaSettings[activeMedia].deleteTitle" :disabled="busy || !!uploading || deletingMedia" @mousedown.prevent @click="deleteMedia(activeMedia, editor.getAttributes(activeMedia).src)">{{ mediaSettings[activeMedia].remove }}</button>
       </div>
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <fieldset v-show="settingsOpen" id="post-settings" class="post-settings" :disabled="busy || uploading || deletingImage">
+    <fieldset v-show="settingsOpen" id="post-settings" class="post-settings" :disabled="busy || !!uploading || deletingMedia">
       <label>Kısa bağlantı<input v-model="form.slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="200" placeholder="ilk-yazim" /></label>
       <label>Özet<textarea v-model="form.excerpt" rows="2" maxlength="2000"></textarea></label>
       <label>Durum<select v-model="form.published">
