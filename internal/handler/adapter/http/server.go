@@ -58,7 +58,6 @@ type Config struct {
 	PhotoOrigin, BlogOrigin media.Origin
 	Password                string
 	FrontendDir             string
-	SecureCookies           bool
 	TrustedProxies          []netip.Prefix
 	TrustFlyProxy           bool
 	MaxRequests             int

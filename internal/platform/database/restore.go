@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	imageKind       = "image"
-	emptyIndexValue = ""
-	postKind        = "post"
+	imageKind = "image"
+
+	postKind = "post"
 )
 
 // Initialize imports a consistent backup once. An empty but initialized database
@@ -38,12 +38,12 @@ func (r *Store) Initialize(ctx context.Context, load func(context.Context) (back
 			return err
 		}
 		for _, p := range snapshot.Images {
-			if err := Insert(ctx, tx, imageKind, p.UUID, emptyIndexValue, p.Color, 0, p.CreatedAt, p); err != nil {
+			if err := InsertImage(ctx, tx, p); err != nil {
 				return err
 			}
 		}
 		for _, p := range snapshot.Posts {
-			if err := Insert(ctx, tx, postKind, p.ID, p.Slug, emptyIndexValue, p.Published, p.CreatedAt, p); err != nil {
+			if err := InsertPost(ctx, tx, p); err != nil {
 				return err
 			}
 		}

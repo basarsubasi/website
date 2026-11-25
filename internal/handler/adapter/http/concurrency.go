@@ -16,8 +16,8 @@ const (
 )
 
 // limitConcurrency rejects excess work instead of accumulating waiting handlers.
-func limitConcurrency(max int, next http.Handler) http.Handler {
-	slots := make(chan struct{}, max)
+func limitConcurrency(limit int, next http.Handler) http.Handler {
+	slots := make(chan struct{}, limit)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case slots <- struct{}{}:

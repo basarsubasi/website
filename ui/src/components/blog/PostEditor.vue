@@ -25,11 +25,10 @@ const form = reactive<PostInput>({
 });
 const snapshot = () => JSON.stringify({ ...form, body: readPostBody(form.body) });
 const initialForm = snapshot();
-const initialTitle = form.title;
 const date = props.post?.created_at ?? new Date().toISOString();
 const settingsOpen = ref(false);
 const error = ref("");
-const titleField = ref<HTMLElement>();
+const titleField = ref<HTMLTextAreaElement>();
 const formElement = ref<HTMLFormElement>();
 
 const uploading = ref(false);
@@ -62,7 +61,7 @@ async function deleteImage(src: string) {
   error.value = "";
   try {
     const path = new URL(src).pathname;
-    const filename = path.match(/\/images\/([^/]+)$/)?.[1];
+    const filename = /\/images\/([^/]+)$/.exec(path)?.[1];
     if (!filename) throw new Error("Bu görsel silinemiyor.");
     await api("/admin/blog/images/" + encodeURIComponent(filename), send("DELETE"));
     deletedImages.add(src);
@@ -105,7 +104,9 @@ watch(() => props.busy, (busy) => editor.value?.setEditable(!busy && !uploading.
 onMounted(() => { if (!props.post) titleField.value?.focus(); });
 
 function updateTitle(event: Event) {
-  form.title = (event.currentTarget as HTMLElement).innerText.replace(/\r?\n/g, " ");
+  const field = event.currentTarget as HTMLTextAreaElement;
+  field.value = field.value.replaceAll("\n", " ");
+  form.title = field.value;
   error.value = "";
 }
 function suggestSlug() {
@@ -113,7 +114,7 @@ function suggestSlug() {
     form.slug = form.title
       .toLowerCase()
       .normalize("NFKD")
-      .replace(/ı/g, "i")
+      .replaceAll("ı", "i")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
@@ -148,7 +149,8 @@ async function save() {
 <template>
   <form ref="formElement" class="post-editor" lang="tr" spellcheck="false" novalidate @submit.prevent="save">
     <div class="post-editor-toolbar">
-      <input ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadImage" />
+      <label for="blog-image-file" hidden>Yazıya eklenecek görsel</label>
+      <input id="blog-image-file" ref="imageInput" type="file" accept="image/jpeg,image/png,image/gif" hidden @change="uploadImage" />
       <span class="hint">{{ post ? "Yazıyı düzenle" : "Yeni yazı" }}</span>
       <div class="actions">
         <button type="button" :disabled="busy || uploading || deletingImage" @click="imageInput?.click()">{{ uploading ? "Yükleniyor…" : "Görsel ekle" }}</button>
@@ -173,7 +175,9 @@ async function save() {
     </fieldset>
     <PostArticle :title="form.title" :body="form.body" :date="date">
       <template #title>
-        <span ref="titleField" class="editable-title" :contenteditable="busy ? 'false' : 'plaintext-only'" role="textbox" aria-label="Başlık" aria-required="true" aria-multiline="false" :aria-disabled="busy" data-placeholder="Yazının başlığı" lang="tr" spellcheck="false" @input="updateTitle" @blur="suggestSlug" @keydown.enter.prevent="editor?.commands.focus()">{{ initialTitle }}</span>
+        <textarea ref="titleField" class="editable-title" :value="form.title" rows="1" required
+          aria-label="Başlık" :disabled="busy" placeholder="Yazının başlığı" lang="tr" spellcheck="false"
+          @input="updateTitle" @blur="suggestSlug" @keydown.enter.prevent="editor?.commands.focus()"></textarea>
       </template>
       <template #body><EditorContent :editor="editor" class="post-body" /></template>
     </PostArticle>

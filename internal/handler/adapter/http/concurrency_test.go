@@ -47,24 +47,24 @@ func awaitSignal(t *testing.T, ch <-chan struct{}) {
 }
 
 func TestConcurrencyRejectsWithoutQueuingAndRecovers(t *testing.T) {
-	const max = 4
-	entered := make(chan struct{}, max)
+	const limit = 4
+	entered := make(chan struct{}, limit)
 	release := make(chan struct{})
 	var once sync.Once
 	unblock := func() { once.Do(func() { close(release) }) }
 	defer unblock()
-	handler := limitConcurrency(max, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := limitConcurrency(limit, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		entered <- struct{}{}
 		<-release
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	var workers sync.WaitGroup
-	for range max {
+	for range limit {
 		workers.Go(func() {
 			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(concurrencyTestGetMethod, concurrencyTestRootPath, nil))
 		})
 	}
-	for range max {
+	for range limit {
 		awaitSignal(t, entered)
 	}
 	rejected := make(chan struct{})

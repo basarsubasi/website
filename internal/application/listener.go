@@ -17,11 +17,11 @@ type limitedListener struct {
 	err   error
 }
 
-func limitConnections(listener net.Listener, max int) net.Listener {
-	if max <= 0 {
-		max = defaultMaxConnections
+func limitConnections(listener net.Listener, limit int) net.Listener {
+	if limit <= 0 {
+		limit = defaultMaxConnections
 	}
-	return &limitedListener{Listener: listener, slots: make(chan struct{}, max), done: make(chan struct{})}
+	return &limitedListener{Listener: listener, slots: make(chan struct{}, limit), done: make(chan struct{})}
 }
 
 func (l *limitedListener) Accept() (net.Conn, error) {

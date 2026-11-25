@@ -36,7 +36,6 @@ function confirmLeave() {
 function beforeUnload(event: BeforeUnloadEvent) {
   if (!hasUnsavedChanges.value) return;
   event.preventDefault();
-  event.returnValue = "";
 }
 watch(hasUnsavedChanges, active => {
   if (active) window.addEventListener("beforeunload", beforeUnload);
@@ -233,7 +232,7 @@ async function remove(id: string) {
   <section class="admin" :class="{ 'admin--writing': editing && tab === 'posts' }" :aria-busy="checking || loading || busy">
     <template v-if="!checking">
       <p v-if="error" class="error" role="alert">{{ error }}</p>
-      <p v-if="notice" class="success" role="status">{{ notice }}</p>
+      <output v-if="notice" class="success">{{ notice }}</output>
       <form v-if="!authenticated" class="login" @submit.prevent="login">
         <h1>Yönetim</h1>
         <label
@@ -243,7 +242,7 @@ async function remove(id: string) {
             autocomplete="current-password"
             required
             :disabled="busy" /></label
-        ><button :disabled="busy">
+        ><button type="submit" :disabled="busy">
           Giriş yap
         </button>
       </form>

@@ -2,9 +2,9 @@ package media
 
 import (
 	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
+	_ "image/gif"  // Register the GIF decoder for image.DecodeConfig.
+	_ "image/jpeg" // Register the JPEG decoder for image.DecodeConfig.
+	_ "image/png"  // Register the PNG decoder for image.DecodeConfig.
 	"io"
 
 	"github.com/basarsubasi/website/internal/shared/domain"

@@ -38,7 +38,6 @@ const (
 	photosPath           = "/photos"
 	envBlogPublicURL     = "R2_BLOG_PUBLIC_URL"
 	blogPath             = "/blog"
-	envCookieSecure      = "COOKIE_SECURE"
 	falseSetting         = "false"
 	envTrustFlyProxy     = "TRUST_FLY_PROXY"
 	envTrustedProxyCIDRs = "TRUSTED_PROXY_CIDRS"
@@ -79,7 +78,6 @@ func run(address, frontend string, s3Only bool) error {
 		envSecretAccessKey:   testCredential,
 		envPhotosPublicURL:   storage.URL + photosPath,
 		envBlogPublicURL:     storage.URL + blogPath,
-		envCookieSecure:      falseSetting,
 		envTrustFlyProxy:     falseSetting,
 		envTrustedProxyCIDRs: emptyString,
 	} {

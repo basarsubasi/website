@@ -81,7 +81,7 @@ func (r *Repository) commit(ctx context.Context, next catalog) error {
 	}
 	etag, err := r.objects.PutIf(ctx, CatalogKey, raw, r.etag, false)
 	if err != nil {
-		reconcile, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		reconcile, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		if readErr := r.load(reconcile); readErr == nil && r.state.Revision == next.Revision {
 			return nil

@@ -18,7 +18,6 @@ swap_size_mb = 0
   wait_timeout = '1m0s'
 
 [env]
-  COOKIE_SECURE = 'true'
   DATABASE_PATH = '/data/website.db'
   EPHEMERAL_DATABASE = 'true'
   FRONTEND_DIR = '/app/frontend'

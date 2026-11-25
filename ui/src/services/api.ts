@@ -30,11 +30,9 @@ export const send = (method: string, body?: unknown): RequestInit => ({
   method,
   ...(body === undefined ? {} : { body: JSON.stringify(body) }),
 });
-export const message = (error: unknown): string =>
-  error instanceof TypeError
-    ? "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin."
-    : error instanceof SyntaxError
-      ? "Sunucudan geçersiz bir yanıt alındı. Lütfen tekrar deneyin."
-      : error instanceof Error
-        ? error.message
-        : "Bir hata oluştu. Lütfen tekrar deneyin.";
+export function message(error: unknown): string {
+  if (error instanceof TypeError) return "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.";
+  if (error instanceof SyntaxError) return "Sunucudan geçersiz bir yanıt alındı. Lütfen tekrar deneyin.";
+  if (error instanceof Error) return error.message;
+  return "Bir hata oluştu. Lütfen tekrar deneyin.";
+}

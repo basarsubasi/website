@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	imageKind            = "image"
-	emptySlug            = ""
+	imageKind = "image"
+
 	deleteImageOperation = "delete-image"
 )
 
@@ -36,7 +36,7 @@ func (r *Repository) ListImages(ctx context.Context, pagination domain.Paginatio
 func (r *Repository) CreateImage(ctx context.Context, image photo.Image) (photo.Image, error) {
 	image.CreatedAt = database.Now()
 	err := r.store.Change(ctx, func(tx *sql.Tx) error {
-		if err := database.Insert(ctx, tx, imageKind, image.UUID, emptySlug, image.Color, 0, image.CreatedAt, image); err != nil {
+		if err := database.InsertImage(ctx, tx, image); err != nil {
 			return err
 		}
 		return database.Enqueue(ctx, tx, imageKind, image)

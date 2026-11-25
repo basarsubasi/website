@@ -30,6 +30,7 @@ const (
 
 const shardedCatalogVersion = 2
 const catalogPartSize = 4 << 20
+const partOverhead = 128
 
 // The root remains a small, conditionally written commit point. Immutable parts
 // contain bounded groups of records; old version-1 catalogs remain readable.
@@ -54,34 +55,41 @@ func readCatalog(ctx context.Context, objects ObjectStore, raw []byte, etag stri
 		if err != nil {
 			return state, size, fmt.Errorf(readPartErrorFormat, err)
 		}
-		if catalogPartKey(data) != key {
-			return state, size, fmt.Errorf(digestMismatchMessage)
-		}
-		var part struct {
-			Images map[string]photo.Image `json:"images"`
-			Posts  map[string]postEntry   `json:"posts"`
-		}
-		if err := json.Unmarshal(data, &part); err != nil {
+		if err := mergeCatalogPart(&state, key, data); err != nil {
 			return state, size, err
-		}
-		if part.Images == nil || part.Posts == nil {
-			return state, size, fmt.Errorf(invalidPartMessage)
-		}
-		for id, p := range part.Images {
-			if _, exists := state.Images[id]; exists {
-				return state, size, fmt.Errorf(duplicateImageMessage)
-			}
-			state.Images[id] = p
-		}
-		for id, p := range part.Posts {
-			if _, exists := state.Posts[id]; exists {
-				return state, size, fmt.Errorf(duplicatePostMessage)
-			}
-			state.Posts[id] = p
 		}
 		size += len(data)
 	}
 	return state, size, validateCatalog(state)
+}
+
+func mergeCatalogPart(state *catalog, key string, data []byte) error {
+	if catalogPartKey(data) != key {
+		return fmt.Errorf(digestMismatchMessage)
+	}
+	var part struct {
+		Images map[string]photo.Image `json:"images"`
+		Posts  map[string]postEntry   `json:"posts"`
+	}
+	if err := json.Unmarshal(data, &part); err != nil {
+		return err
+	}
+	if part.Images == nil || part.Posts == nil {
+		return fmt.Errorf(invalidPartMessage)
+	}
+	for id, p := range part.Images {
+		if _, exists := state.Images[id]; exists {
+			return fmt.Errorf(duplicateImageMessage)
+		}
+		state.Images[id] = p
+	}
+	for id, p := range part.Posts {
+		if _, exists := state.Posts[id]; exists {
+			return fmt.Errorf(duplicatePostMessage)
+		}
+		state.Posts[id] = p
+	}
+	return nil
 }
 
 func catalogPartKey(raw []byte) string {
@@ -101,61 +109,8 @@ func (r *Repository) encodeCatalog(ctx context.Context, next *catalog) ([]byte, 
 		root.Version = shardedCatalogVersion
 		root.Images = map[string]photo.Image{}
 		root.Posts = map[string]postEntry{}
-		part := catalogPart{Images: map[string]json.RawMessage{}, Posts: map[string]json.RawMessage{}}
-		partSize := 128
-		flush := func() error {
-			if len(part.Images)+len(part.Posts) == 0 {
-				return nil
-			}
-			data, err := json.Marshal(part)
-			if err != nil {
-				return err
-			}
-			if len(data) > maxObjectJSON {
-				return domain.Invalid(oversizedRecordMessage)
-			}
-			key := catalogPartKey(data)
-			if !slices.Contains(r.state.Parts, key) {
-				if _, err = r.objects.Put(ctx, key, bytes.NewReader(data), int64(len(data)), catalogPartsJsonContentType, nil); err != nil {
-					return err
-				}
-			}
-			root.Parts = append(root.Parts, key)
-			part = catalogPart{Images: map[string]json.RawMessage{}, Posts: map[string]json.RawMessage{}}
-			partSize = 128
-			return nil
-		}
-		add := func(id string, value any, image bool) error {
-			data, err := json.Marshal(value)
-			if err != nil {
-				return err
-			}
-			name, _ := json.Marshal(id)
-			n := len(data) + len(name) + 2
-			if partSize+n > catalogPartSize {
-				if err := flush(); err != nil {
-					return err
-				}
-			}
-			if image {
-				part.Images[id] = data
-			} else {
-				part.Posts[id] = data
-			}
-			partSize += n
-			return nil
-		}
-		for _, id := range slices.Sorted(maps.Keys(next.Images)) {
-			if err := add(id, next.Images[id], true); err != nil {
-				return nil, 0, err
-			}
-		}
-		for _, id := range slices.Sorted(maps.Keys(next.Posts)) {
-			if err := add(id, next.Posts[id], false); err != nil {
-				return nil, 0, err
-			}
-		}
-		if err := flush(); err != nil {
+		root.Parts, err = r.writeCatalogParts(ctx, next)
+		if err != nil {
 			return nil, 0, err
 		}
 	}
@@ -177,4 +132,78 @@ func (r *Repository) encodeCatalog(ctx context.Context, next *catalog) ([]byte, 
 	next.Parts = root.Parts
 	next.Garbage = root.Garbage
 	return raw, size, nil
+}
+
+type catalogPartWriter struct {
+	repo *Repository
+	part catalogPart
+	size int
+	keys []string
+}
+
+func (w *catalogPartWriter) reset() {
+	w.part = catalogPart{Images: make(map[string]json.RawMessage), Posts: make(map[string]json.RawMessage)}
+	w.size = partOverhead
+}
+
+func (r *Repository) writeCatalogParts(ctx context.Context, next *catalog) ([]string, error) {
+	w := catalogPartWriter{repo: r}
+	w.reset()
+	for _, id := range slices.Sorted(maps.Keys(next.Images)) {
+		if err := w.add(ctx, id, next.Images[id], true); err != nil {
+			return nil, err
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(next.Posts)) {
+		if err := w.add(ctx, id, next.Posts[id], false); err != nil {
+			return nil, err
+		}
+	}
+	if err := w.flush(ctx); err != nil {
+		return nil, err
+	}
+	return w.keys, nil
+}
+
+func (w *catalogPartWriter) add(ctx context.Context, id string, value any, image bool) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	name, _ := json.Marshal(id)
+	size := len(data) + len(name) + 2
+	if w.size+size > catalogPartSize {
+		if err := w.flush(ctx); err != nil {
+			return err
+		}
+	}
+	if image {
+		w.part.Images[id] = data
+	} else {
+		w.part.Posts[id] = data
+	}
+	w.size += size
+	return nil
+}
+
+func (w *catalogPartWriter) flush(ctx context.Context) error {
+	if len(w.part.Images)+len(w.part.Posts) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(w.part)
+	if err != nil {
+		return err
+	}
+	if len(data) > maxObjectJSON {
+		return domain.Invalid(oversizedRecordMessage)
+	}
+	key := catalogPartKey(data)
+	if !slices.Contains(w.repo.state.Parts, key) {
+		if _, err := w.repo.objects.Put(ctx, key, bytes.NewReader(data), int64(len(data)), catalogPartsJsonContentType, nil); err != nil {
+			return err
+		}
+	}
+	w.keys = append(w.keys, key)
+	w.reset()
+	return nil
 }

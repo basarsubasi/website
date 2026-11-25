@@ -45,7 +45,7 @@ func (u *UseCase) UploadImage(ctx context.Context, p photo.PhotoInput, file io.R
 	}
 	photo, err := u.repo.CreateImage(ctx, photo.Image{Width: info.Width, Height: info.Height, UUID: id, ImageURL: imageURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: info.ContentType, Color: p.Color})
 	if err != nil && !errors.Is(err, domain.ErrUncertain) {
-		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		if cleanupErr := u.photos.Delete(cleanup, key); cleanupErr != nil {
 			log.Printf(cleanupFailureFormat, key, cleanupErr)

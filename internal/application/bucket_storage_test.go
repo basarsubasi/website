@@ -107,6 +107,25 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	if err := app.Repository.SyncBackups(ctx, app.Backup); err != nil {
 		t.Fatal(err)
 	}
+	checkBucketContents(t, ctx, photos, blog)
+	blogImageKey := strings.TrimPrefix(imageURL, endpoint.URL+blogBucketPrefix)
+	if raw, _, err := blog.Read(ctx, blogImageKey); err != nil || !bytes.Equal(raw, data.Bytes()) {
+		t.Fatal(missingImageFailure, err)
+	}
+	restoreAndDelete(t, ctx, cfg, photo, post)
+	checkDeletedBucketRecords(t, ctx, cfg, blog, blogImageKey)
+}
+
+func TestBucketsMustBeDistinct(t *testing.T) {
+	env := validEnv()
+	env[bucketStorageTestEnvBlogBucket] = env[bucketStorageTestEnvPhotosBucket]
+	if _, err := loadConfig([]string{bucketStorageTestEnvArgument, emptyEnvFile}, lookup(env)); err == nil {
+		t.Fatal(sharedBucketFailure)
+	}
+}
+
+func checkBucketContents(t *testing.T, ctx context.Context, photos, blog *testutil.Objects) {
+	t.Helper()
 	for _, key := range photos.Keys() {
 		if strings.HasPrefix(key, postKeyPrefix) || strings.HasPrefix(key, imageKeyPrefix) {
 			t.Fatalf(misplacedBlogObjectFormat, key)
@@ -129,10 +148,10 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 			t.Fatal(missingCatalogFailure, err)
 		}
 	}
-	blogImageKey := strings.TrimPrefix(imageURL, endpoint.URL+blogBucketPrefix)
-	if raw, _, err := blog.Read(ctx, blogImageKey); err != nil || !bytes.Equal(raw, data.Bytes()) {
-		t.Fatal(missingImageFailure, err)
-	}
+}
+
+func restoreAndDelete(t *testing.T, ctx context.Context, cfg Config, photo galleryphoto.Image, post article.Post) {
+	t.Helper()
 	cfg.DatabasePath = filepath.Join(t.TempDir(), restoredFilename)
 	restored, err := New(cfg)
 	if err != nil {
@@ -160,6 +179,10 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	if err := restored.Repository.SyncBackups(ctx, restored.Backup); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func checkDeletedBucketRecords(t *testing.T, ctx context.Context, cfg Config, blog *testutil.Objects, blogImageKey string) {
+	t.Helper()
 	cfg.DatabasePath = filepath.Join(t.TempDir(), emptyFilename)
 	empty, err := New(cfg)
 	if err != nil {
@@ -176,13 +199,5 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	}
 	if _, _, err := blog.Read(ctx, blogImageKey); err != nil {
 		t.Fatal(blogImageCleanupFailure, err)
-	}
-}
-
-func TestBucketsMustBeDistinct(t *testing.T) {
-	env := validEnv()
-	env[bucketStorageTestEnvBlogBucket] = env[bucketStorageTestEnvPhotosBucket]
-	if _, err := loadConfig([]string{bucketStorageTestEnvArgument, emptyEnvFile}, lookup(env)); err == nil {
-		t.Fatal(sharedBucketFailure)
 	}
 }

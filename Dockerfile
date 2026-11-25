@@ -3,7 +3,7 @@
 FROM node:26-bookworm-slim AS frontend
 WORKDIR /src/ui
 COPY ui/package.json ui/package-lock.json ./
-RUN npm ci --include=dev
+RUN npm ci --include=dev --ignore-scripts
 COPY ui/ ./
 RUN npm run build
 

@@ -80,8 +80,6 @@ const (
 	invalidDurationMessage          = "RESTORE_TIMEOUT must be a positive duration, for example 5m"
 	envEphemeralDatabase            = "EPHEMERAL_DATABASE"
 	invalidEphemeralDatabaseMessage = "EPHEMERAL_DATABASE must be a boolean"
-	envCookieSecure                 = "COOKIE_SECURE"
-	invalidCookieSecureMessage      = "COOKIE_SECURE must be a boolean"
 	envTrustFlyProxy                = "TRUST_FLY_PROXY"
 	invalidTrustFlyProxyMessage     = "TRUST_FLY_PROXY must be a boolean"
 	envTrustedProxyCIDRs            = "TRUSTED_PROXY_CIDRS"
@@ -107,13 +105,18 @@ const (
 	pendingBackupFormat = "R2 backup pending (%d queued operations): %v"
 )
 
+var (
+	envKey                      = regexp.MustCompile(envKeyPattern)
+	errInvalidEphemeralDatabase = errors.New(invalidEphemeralDatabaseMessage)
+	errInvalidTrustFlyProxy     = errors.New(invalidTrustFlyProxyMessage)
+)
+
 type Config struct {
 	EphemeralDatabase bool
 	DatabasePath      string
 	Address           string
 	FrontendDir       string
 	AdminPassword     string
-	SecureCookies     bool
 	TrustedProxies    []netip.Prefix
 	TrustFlyProxy     bool
 	RestoreTimeout    time.Duration
@@ -201,7 +204,7 @@ func New(cfg Config) (*Application, error) {
 	handler := httpadapter.New(galleryModule, blogModule, repo.Ping, httpadapter.Config{
 		PhotoOrigin: objects.PublicOrigin(), BlogOrigin: blogObjects.PublicOrigin(),
 		Password: cfg.AdminPassword, FrontendDir: cfg.FrontendDir,
-		SecureCookies: cfg.SecureCookies, TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy,
+		TrustedProxies: cfg.TrustedProxies, TrustFlyProxy: cfg.TrustFlyProxy,
 		MaxRequests: cfg.MaxRequests, MaxUploads: cfg.MaxUploads,
 	})
 	server := &http.Server{Addr: cfg.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
@@ -288,62 +291,18 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 		}
 		return other
 	}
-	cfg := Config{DatabasePath: fallback(*databasePath, fallback(get(envDatabasePath), defaultDatabasePath)), Address: fallback(*address, fallback(get(envHTTPAddr), defaultListenAddr)), FrontendDir: fallback(*frontend, fallback(get(envFrontendDir), defaultFrontendDir)), AdminPassword: get(envAdminPassword)}
-	for _, limit := range []struct {
-		name     string
-		value    *int
-		fallback int
-	}{
-		{envMaxRequests, &cfg.MaxRequests, httpadapter.DefaultMaxRequests},
-		{envMaxUploads, &cfg.MaxUploads, httpadapter.DefaultMaxUploads},
-		{envMaxConnections, &cfg.MaxConnections, defaultMaxConnections},
-	} {
-		*limit.value = limit.fallback
-		if raw := get(limit.name); raw != emptyString {
-			value, err := strconv.Atoi(raw)
-			if err != nil || value <= 0 {
-				return Config{}, fmt.Errorf(positiveIntegerFormat, limit.name)
-			}
-			*limit.value = value
-		}
+	cfg := Config{
+		DatabasePath:   fallback(*databasePath, fallback(get(envDatabasePath), defaultDatabasePath)),
+		Address:        fallback(*address, fallback(get(envHTTPAddr), defaultListenAddr)),
+		FrontendDir:    fallback(*frontend, fallback(get(envFrontendDir), defaultFrontendDir)),
+		AdminPassword:  get(envAdminPassword),
+		RestoreTimeout: 5 * time.Minute,
 	}
-	cfg.RestoreTimeout = 5 * time.Minute
-	if raw := get(envRestoreTimeout); raw != emptyString {
-		duration, err := time.ParseDuration(raw)
-		if err != nil || duration <= 0 {
-			return Config{}, fmt.Errorf(invalidDurationMessage)
-		}
-		cfg.RestoreTimeout = duration
+	if err := cfg.readLimits(get); err != nil {
+		return Config{}, err
 	}
-	if raw := get(envEphemeralDatabase); raw != emptyString {
-		value, err := strconv.ParseBool(raw)
-		if err != nil {
-			return Config{}, fmt.Errorf(invalidEphemeralDatabaseMessage)
-		}
-		cfg.EphemeralDatabase = value
-	}
-	if raw := get(envCookieSecure); raw != emptyString {
-		secure, err := strconv.ParseBool(raw)
-		if err != nil {
-			return Config{}, fmt.Errorf(invalidCookieSecureMessage)
-		}
-		cfg.SecureCookies = secure
-	}
-	if raw := get(envTrustFlyProxy); raw != emptyString {
-		enabled, err := strconv.ParseBool(raw)
-		if err != nil {
-			return Config{}, fmt.Errorf(invalidTrustFlyProxyMessage)
-		}
-		cfg.TrustFlyProxy = enabled
-	}
-	if raw := strings.TrimSpace(get(envTrustedProxyCIDRs)); raw != emptyString {
-		for _, value := range strings.Split(raw, cidrSeparator) {
-			prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
-			if err != nil {
-				return Config{}, fmt.Errorf(invalidProxyCIDRsFormat, err)
-			}
-			cfg.TrustedProxies = append(cfg.TrustedProxies, prefix.Masked())
-		}
+	if err := cfg.readServerSettings(get); err != nil {
+		return Config{}, err
 	}
 	endpoint := get(envR2Endpoint)
 	if endpoint == emptyString && get(envR2AccountID) != emptyString {
@@ -357,7 +316,65 @@ func loadConfig(args []string, lookup func(string) (string, bool)) (Config, erro
 	return cfg, nil
 }
 
-var envKey = regexp.MustCompile(envKeyPattern)
+func (cfg *Config) readLimits(get func(string) string) error {
+	for _, limit := range []struct {
+		name     string
+		value    *int
+		fallback int
+	}{
+		{envMaxRequests, &cfg.MaxRequests, httpadapter.DefaultMaxRequests},
+		{envMaxUploads, &cfg.MaxUploads, httpadapter.DefaultMaxUploads},
+		{envMaxConnections, &cfg.MaxConnections, defaultMaxConnections},
+	} {
+		*limit.value = limit.fallback
+		if raw := get(limit.name); raw != emptyString {
+			value, err := strconv.Atoi(raw)
+			if err != nil || value <= 0 {
+				return fmt.Errorf(positiveIntegerFormat, limit.name)
+			}
+			*limit.value = value
+		}
+	}
+	if raw := get(envRestoreTimeout); raw != emptyString {
+		duration, err := time.ParseDuration(raw)
+		if err != nil || duration <= 0 {
+			return fmt.Errorf(invalidDurationMessage)
+		}
+		cfg.RestoreTimeout = duration
+	}
+	return nil
+}
+
+func (cfg *Config) readServerSettings(get func(string) string) error {
+	for _, setting := range []struct {
+		name    string
+		invalid error
+		dst     *bool
+	}{
+		{envEphemeralDatabase, errInvalidEphemeralDatabase, &cfg.EphemeralDatabase},
+		{envTrustFlyProxy, errInvalidTrustFlyProxy, &cfg.TrustFlyProxy},
+	} {
+		raw := get(setting.name)
+		if raw == emptyString {
+			continue
+		}
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			return setting.invalid
+		}
+		*setting.dst = value
+	}
+	if raw := strings.TrimSpace(get(envTrustedProxyCIDRs)); raw != emptyString {
+		for _, value := range strings.Split(raw, cidrSeparator) {
+			prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
+			if err != nil {
+				return fmt.Errorf(invalidProxyCIDRsFormat, err)
+			}
+			cfg.TrustedProxies = append(cfg.TrustedProxies, prefix.Masked())
+		}
+	}
+	return nil
+}
 
 func readEnvFile(path string) (map[string]string, error) {
 	values := make(map[string]string)
@@ -401,11 +418,13 @@ func envValue(value string) (string, error) {
 		return emptyString, nil
 	}
 	if value[0] != '\'' && value[0] != '"' {
-		if before, _, ok := strings.Cut(value, inlineCommentPrefix); ok {
-			value = before
-		}
-		return strings.TrimSpace(value), nil
+		before, _, _ := strings.Cut(value, inlineCommentPrefix)
+		return strings.TrimSpace(before), nil
 	}
+	return quotedEnvValue(value)
+}
+
+func quotedEnvValue(value string) (string, error) {
 	quote := value[0]
 	for i := 1; i < len(value); i++ {
 		if quote == '"' && value[i] == '\\' {

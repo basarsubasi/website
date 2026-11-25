@@ -11,8 +11,6 @@ import (
 	"time"
 
 	store "github.com/basarsubasi/website/gen/sqlc/storage"
-	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/backup"
 )
 
@@ -50,27 +48,18 @@ func (r *Store) syncBackups(ctx context.Context, backup backup.Target, wait bool
 		return err
 	}
 	defer lock.Close()
-	for {
-		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			break
-		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) {
-			return err
-		}
-		if !wait {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(20 * time.Millisecond):
-		}
+	locked, err := acquireBackupLock(ctx, lock, wait)
+	if err != nil || !locked {
+		return err
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	return r.drainBackupQueue(ctx, backup, wait)
+}
+
+func (r *Store) drainBackupQueue(ctx context.Context, backup backup.Target, wait bool) error {
+	queue := store.New(r.db)
 	for i := 0; wait || i < 100; i++ {
-		item, err := store.New(r.db).NextBackup(ctx)
-		sequence, operation, raw := item.Sequence, item.Operation, item.Payload
+		item, err := queue.NextBackup(ctx)
 		if errors.Is(err, sql.ErrNoRows) {
 			if wait {
 				return nil
@@ -80,34 +69,55 @@ func (r *Store) syncBackups(ctx context.Context, backup backup.Target, wait bool
 		if err != nil {
 			return err
 		}
-		switch operation {
-		case saveImageOperation, deleteImageOperation:
-			var p photo.Image
-			if err = json.Unmarshal(raw, &p); err == nil {
-				if operation == saveImageOperation {
-					err = backup.SaveImage(ctx, p)
-				} else {
-					err = backup.RemoveImage(ctx, p)
-				}
-			}
-		case savePostOperation, deletePostOperation:
-			var p article.Post
-			if err = json.Unmarshal(raw, &p); err == nil {
-				if operation == savePostOperation {
-					err = backup.SavePost(ctx, p)
-				} else {
-					err = backup.RemovePost(ctx, p)
-				}
-			}
-		default:
-			err = fmt.Errorf(unknownOperationFormat, operation)
+		if err := deliverBackup(ctx, backup, item); err != nil {
+			return fmt.Errorf(backupItemErrorFormat, item.Sequence, err)
 		}
-		if err != nil {
-			return fmt.Errorf(backupItemErrorFormat, sequence, err)
-		}
-		if err = store.New(r.db).DeleteBackup(ctx, sequence); err != nil {
+		if err := queue.DeleteBackup(ctx, item.Sequence); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func acquireBackupLock(ctx context.Context, lock *os.File, wait bool) (bool, error) {
+	for {
+		err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			return true, nil
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			return false, err
+		}
+		if !wait {
+			return false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+}
+
+func deliverBackup(ctx context.Context, target backup.Target, item store.BackupQueue) error {
+	switch item.Operation {
+	case saveImageOperation:
+		return deliver(ctx, item.Payload, target.SaveImage)
+	case deleteImageOperation:
+		return deliver(ctx, item.Payload, target.RemoveImage)
+	case savePostOperation:
+		return deliver(ctx, item.Payload, target.SavePost)
+	case deletePostOperation:
+		return deliver(ctx, item.Payload, target.RemovePost)
+	default:
+		return fmt.Errorf(unknownOperationFormat, item.Operation)
+	}
+}
+
+func deliver[T any](ctx context.Context, raw []byte, apply func(context.Context, T) error) error {
+	var record T
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return err
+	}
+	return apply(ctx, record)
 }

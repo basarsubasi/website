@@ -191,6 +191,7 @@ button:focus-visible {
   background: #fff4f2;
 }
 .success {
+  display: block;
   padding: 12px;
   color: #245528;
   background: #f0f7ee;
@@ -236,14 +237,23 @@ button:focus-visible {
 .post-editor .post-article {
   padding-top: clamp(48px, 8vw, 112px);
 }
-.editable-title {
+.admin .editable-title {
   display: block;
+  field-sizing: content;
   min-height: 1.2em;
+  padding: 0;
+  border: 0;
+  resize: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-wrap: inherit;
 }
-.editable-title:empty::before {
-  content: attr(data-placeholder);
+.editable-title::placeholder {
   color: #999;
-  pointer-events: none;
+}
+.post-editor label[hidden] {
+  display: none;
 }
 .post-editor .tiptap {
   min-height: 8em;

@@ -17,6 +17,11 @@ export function paragraphsToDocument(body: string): JSONContent[] {
     ]),
   }));
 }
+function inlineContent(child: JSONContent): JSONContent[] {
+  if (child.type === "text" && typeof child.text === "string") return [{ type: "text", text: child.text }];
+  if (child.type === "hardBreak") return [{ type: "hardBreak" }];
+  return [];
+}
 export function readPostBody(body: string): JSONContent[] {
   if (body.startsWith(prefix)) {
     try {
@@ -24,8 +29,7 @@ export function readPostBody(body: string): JSONContent[] {
       if (Array.isArray(nodes)) return nodes.map(node => ({
         type: node.type === "blogImage" ? "blogImage" : "paragraph",
         ...(node.type === "blogImage" ? { attrs: { src: imageURL(node.attrs?.src), width: imageWidth(node.attrs?.width), intrinsicWidth: imageDimension(node.attrs?.intrinsicWidth), intrinsicHeight: imageDimension(node.attrs?.intrinsicHeight) } } : {}),
-        content: Array.isArray(node.content) ? node.content.flatMap((child: JSONContent) =>
-          child.type === "text" && typeof child.text === "string" ? [{ type: "text", text: child.text }] : child.type === "hardBreak" ? [{ type: "hardBreak" }] : []) : [],
+        content: Array.isArray(node.content) ? node.content.flatMap(inlineContent) : [],
       }));
     } catch { /* Old plain text remains readable. */ }
   }

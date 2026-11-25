@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
+	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/shared/domain"
 	"github.com/basarsubasi/website/internal/testutil"
 )
@@ -36,6 +37,9 @@ const (
 
 	emptyPartJSON              = `{"images":{},"posts":{}}`
 	corruptPartAcceptedMessage = "corrupt part accepted"
+	shardedPhotoID             = "sharded-photo"
+	shardedPhotoKey            = "photos/sharded-photo.png"
+	shardedPhotoMismatch       = "gallery image changed during catalog upgrade"
 )
 
 var errPartUploadFailed = errors.New(partUploadFailedMessage)
@@ -82,21 +86,16 @@ func TestCatalogUpgradeFailureAndAmbiguousCommit(t *testing.T) {
 		t.Fatal(prematureRootUpdateMessage)
 	}
 	objects.AmbiguousNextCommit()
-	if err := repo.commit(ctx, repo.state.clone()); err != nil {
+	next := repo.state.clone()
+	image := photo.Image{UUID: shardedPhotoID, ObjectKey: shardedPhotoKey, Color: colorPhoto}
+	next.Images[image.UUID] = image
+	if err := repo.commit(ctx, next); err != nil {
 		t.Fatal(unreconciledRevisionMessage, err)
 	}
 	if repo.state.Version != shardedCatalogVersion || len(repo.state.Parts) < 2 {
 		t.Fatal(unpartitionedCatalogMessage)
 	}
-	snapshot, err := NewBackup(objects).LoadSnapshot(ctx)
-	if err != nil || len(snapshot.Posts) != 6 {
-		t.Fatalf(legacyRestoreErrorFormat, err)
-	}
-	for _, post := range snapshot.Posts {
-		if len(post.Excerpt) != 950<<10 || post.Body != originalBody {
-			t.Fatal(changedPostMessage)
-		}
-	}
+	checkUpgradedSnapshot(t, ctx, objects, image)
 	// A cleanup-only commit must retain every referenced part.
 	repo.cleanup(ctx)
 	for _, key := range repo.state.Parts {
@@ -113,6 +112,22 @@ func TestCatalogUpgradeFailureAndAmbiguousCommit(t *testing.T) {
 	page, err := reopened.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, true)
 	if err != nil || page.Total != 6 {
 		t.Fatalf(partitionReadErrorFormat, page.Total, err)
+	}
+}
+
+func checkUpgradedSnapshot(t *testing.T, ctx context.Context, objects *testutil.Objects, image photo.Image) {
+	t.Helper()
+	snapshot, err := NewBackup(objects).LoadSnapshot(ctx)
+	if err != nil || len(snapshot.Posts) != 6 {
+		t.Fatalf(legacyRestoreErrorFormat, err)
+	}
+	if len(snapshot.Images) != 1 || snapshot.Images[0] != image {
+		t.Fatal(shardedPhotoMismatch)
+	}
+	for _, post := range snapshot.Posts {
+		if len(post.Excerpt) != 950<<10 || post.Body != originalBody {
+			t.Fatal(changedPostMessage)
+		}
 	}
 }
 

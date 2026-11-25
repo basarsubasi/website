@@ -36,19 +36,18 @@ const (
 	applicationTestEnvBlogPublicURL   = "R2_BLOG_PUBLIC_URL"
 	fixtureBlogURL                    = "https://blog-assets.example.com"
 
-	envFilename                    = "config.env"
-	envFileContents                = "export ADMIN_PASSWORD='a long local password'\nHTTP_ADDR=127.0.0.1:9000 # local\nCOOKIE_SECURE=true\nR2_ACCOUNT_ID=account\nR2_ACCESS_KEY_ID=key\nR2_SECRET_ACCESS_KEY=secret\nR2_PHOTOS_BUCKET=website\nR2_PHOTOS_PUBLIC_URL=https://images.example.com\nR2_BLOG_BUCKET=blog\nR2_BLOG_PUBLIC_URL=https://blog-assets.example.com\nFRONTEND_DIR=\"assets\\twith-tab\"\n"
-	applicationTestEnvArgument     = "-env"
-	addrArgument                   = "-addr"
-	overrideAddress                = ":8080"
-	applicationTestEnvCookieSecure = "COOKIE_SECURE"
-	falseSetting                   = "false"
-	expectedAssetsDir              = "assets\twith-tab"
-	expectedR2Endpoint             = "https://account.r2.cloudflarestorage.com"
-	precedenceFailure              = "configuration precedence failed"
-	emptyValue                     = ""
-	emptyPasswordFailure           = "empty password accepted"
-	envMutationFailure             = "process environment changed"
+	envFilename                = "config.env"
+	envFileContents            = "export ADMIN_PASSWORD='a long local password'\nHTTP_ADDR=127.0.0.1:9000 # local\nTRUST_FLY_PROXY=true\nR2_ACCOUNT_ID=account\nR2_ACCESS_KEY_ID=key\nR2_SECRET_ACCESS_KEY=secret\nR2_PHOTOS_BUCKET=website\nR2_PHOTOS_PUBLIC_URL=https://images.example.com\nR2_BLOG_BUCKET=blog\nR2_BLOG_PUBLIC_URL=https://blog-assets.example.com\nFRONTEND_DIR=\"assets\\twith-tab\"\n"
+	applicationTestEnvArgument = "-env"
+	addrArgument               = "-addr"
+	overrideAddress            = ":8080"
+	falseSetting               = "false"
+	expectedAssetsDir          = "assets\twith-tab"
+	expectedR2Endpoint         = "https://account.r2.cloudflarestorage.com"
+	precedenceFailure          = "configuration precedence failed"
+	emptyValue                 = ""
+	emptyPasswordFailure       = "empty password accepted"
+	envMutationFailure         = "process environment changed"
 
 	missingSettingFailure = "missing setting accepted"
 	invalidSetting        = "invalid"
@@ -126,11 +125,11 @@ func TestConfigPrecedenceAndDotEnv(t *testing.T) {
 	if err := os.WriteFile(file, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := loadConfig([]string{applicationTestEnvArgument, file, addrArgument, overrideAddress}, lookup(map[string]string{applicationTestEnvCookieSecure: falseSetting}))
+	cfg, err := loadConfig([]string{applicationTestEnvArgument, file, addrArgument, overrideAddress}, lookup(map[string]string{applicationTestEnvTrustFlyProxy: falseSetting}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Address != overrideAddress || cfg.SecureCookies || cfg.FrontendDir != expectedAssetsDir || cfg.PhotoStorage.Endpoint != expectedR2Endpoint {
+	if cfg.Address != overrideAddress || cfg.TrustFlyProxy || cfg.FrontendDir != expectedAssetsDir || cfg.PhotoStorage.Endpoint != expectedR2Endpoint {
 		t.Fatal(precedenceFailure)
 	}
 	if _, err := loadConfig([]string{applicationTestEnvArgument, file}, lookup(map[string]string{applicationTestEnvAdminPassword: emptyValue})); err == nil {
@@ -152,7 +151,7 @@ func TestMissingConfigurationFails(t *testing.T) {
 		})
 	}
 	env := validEnv()
-	env[applicationTestEnvCookieSecure] = invalidSetting
+	env[applicationTestEnvEphemeralDatabase] = invalidSetting
 	if _, err := loadConfig([]string{applicationTestEnvArgument, emptyValue}, lookup(env)); err == nil {
 		t.Fatal(invalidBooleanFailure)
 	}
@@ -280,28 +279,33 @@ func TestConcurrencyLimitConfiguration(t *testing.T) {
 	for _, name := range []string{applicationTestEnvMaxRequests, applicationTestEnvMaxUploads, applicationTestEnvMaxConnections} {
 		for _, raw := range []string{emptyValue, positiveLimit, zeroValue, negativeLimit, invalidSetting, overflowingLimit} {
 			t.Run(name+pathSeparator+raw, func(t *testing.T) {
-				env := validEnv()
-				env[name] = raw
-				cfg, err := loadConfig([]string{applicationTestEnvArgument, emptyValue}, lookup(env))
-				if raw != emptyValue && raw != positiveLimit {
-					if err == nil {
-						t.Fatal(invalidLimitFailure)
-					}
-					return
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				got := map[string]int{applicationTestEnvMaxRequests: cfg.MaxRequests, applicationTestEnvMaxUploads: cfg.MaxUploads, applicationTestEnvMaxConnections: cfg.MaxConnections}[name]
-				want := map[string]int{applicationTestEnvMaxRequests: 32, applicationTestEnvMaxUploads: 2, applicationTestEnvMaxConnections: 128}[name]
-				if raw == positiveLimit {
-					want = 7
-				}
-				if got != want {
-					t.Fatalf(limitMismatchFormat, got, want)
-				}
+				checkConcurrencyLimit(t, name, raw)
 			})
 		}
+	}
+}
+
+func checkConcurrencyLimit(t *testing.T, name, raw string) {
+	t.Helper()
+	env := validEnv()
+	env[name] = raw
+	cfg, err := loadConfig([]string{applicationTestEnvArgument, emptyValue}, lookup(env))
+	if raw != emptyValue && raw != positiveLimit {
+		if err == nil {
+			t.Fatal(invalidLimitFailure)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{applicationTestEnvMaxRequests: cfg.MaxRequests, applicationTestEnvMaxUploads: cfg.MaxUploads, applicationTestEnvMaxConnections: cfg.MaxConnections}[name]
+	want := map[string]int{applicationTestEnvMaxRequests: 32, applicationTestEnvMaxUploads: 2, applicationTestEnvMaxConnections: 128}[name]
+	if raw == positiveLimit {
+		want = 7
+	}
+	if got != want {
+		t.Fatalf(limitMismatchFormat, got, want)
 	}
 }
 

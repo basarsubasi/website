@@ -73,43 +73,7 @@ func TestR2S3Requests(t *testing.T) {
 	var methods []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		methods = append(methods, r.Method)
-		if r.URL.Path != expectedObjectPath {
-			t.Errorf(wrongPathFormat, r.URL.Path)
-		}
-		if !strings.Contains(r.Header.Get(authorizationHeader), signingScope) {
-			t.Error(missingSignatureFailure)
-		}
-		if r.Method == putMethod && r.Header.Get(cacheControlHeader) != r2TestImmutableCachePolicy {
-			t.Errorf(missingImageCacheFormat, r.Header.Get(cacheControlHeader))
-		}
-		switch {
-		case r.Method == putMethod && r.Header.Get(copySourceHeader) != r2TestEmptyValue:
-			source, err := url.PathUnescape(r.Header.Get(copySourceHeader))
-			if err != nil || source != expectedCopySource {
-				t.Errorf(wrongCopySourceFormat, source)
-			}
-			if r.Header.Get(metadataDirectiveHeader) != replaceDirective || r.Header.Get(photoMetadataHeader) != updatedMetadata || r.Header.Get(contentTypeHeader) != pngContentType {
-				t.Error(metadataReplacementFailure)
-			}
-			w.Header().Set(contentTypeHeader, xmlContentType)
-			io.WriteString(w, copyResultXML)
-		case r.Method == putMethod:
-			data, _ := io.ReadAll(r.Body)
-			if !bytes.Equal(data, []byte(photoContents)) || r.ContentLength != 13 {
-				t.Errorf(invalidBodyFormat, data, r.ContentLength)
-			}
-			if r.Header.Get(contentTypeHeader) != pngContentType || r.Header.Get(photoMetadataHeader) != encodedMetadata {
-				t.Error(missingMetadataFailure)
-			}
-			if r.Header.Get(trailerHeader) != r2TestEmptyValue {
-				t.Error(checksumTrailerFailure)
-			}
-			w.Header().Set(etagHeader, responseETag)
-		case r.Method == deleteMethod:
-			w.WriteHeader(204)
-		default:
-			t.Errorf(unexpectedRequestFormat, r.Method)
-		}
+		checkS3Request(t, w, r)
 	}))
 	defer server.Close()
 	r2, err := New(Config{Endpoint: server.URL, Bucket: bucketName, AccessKeyID: accessKeyID, SecretAccessKey: secretAccessKey, PublicURL: publicBaseURL})
@@ -163,4 +127,55 @@ func TestR2CachePolicyOnlyAppliesToImages(t *testing.T) {
 	if _, err := store.PutIf(context.Background(), catalogKey, []byte(emptyJSONObject), r2TestEmptyValue, true); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func checkS3Request(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+	if r.URL.Path != expectedObjectPath {
+		t.Errorf(wrongPathFormat, r.URL.Path)
+	}
+	if !strings.Contains(r.Header.Get(authorizationHeader), signingScope) {
+		t.Error(missingSignatureFailure)
+	}
+	if r.Method == putMethod && r.Header.Get(cacheControlHeader) != r2TestImmutableCachePolicy {
+		t.Errorf(missingImageCacheFormat, r.Header.Get(cacheControlHeader))
+	}
+	switch {
+	case r.Method == putMethod && r.Header.Get(copySourceHeader) != r2TestEmptyValue:
+		checkCopyRequest(t, w, r)
+	case r.Method == putMethod:
+		checkPutRequest(t, w, r)
+	case r.Method == deleteMethod:
+		w.WriteHeader(204)
+	default:
+		t.Errorf(unexpectedRequestFormat, r.Method)
+	}
+}
+
+func checkCopyRequest(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+	source, err := url.PathUnescape(r.Header.Get(copySourceHeader))
+	if err != nil || source != expectedCopySource {
+		t.Errorf(wrongCopySourceFormat, source)
+	}
+	if r.Header.Get(metadataDirectiveHeader) != replaceDirective || r.Header.Get(photoMetadataHeader) != updatedMetadata || r.Header.Get(contentTypeHeader) != pngContentType {
+		t.Error(metadataReplacementFailure)
+	}
+	w.Header().Set(contentTypeHeader, xmlContentType)
+	io.WriteString(w, copyResultXML)
+}
+
+func checkPutRequest(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+	data, _ := io.ReadAll(r.Body)
+	if !bytes.Equal(data, []byte(photoContents)) || r.ContentLength != 13 {
+		t.Errorf(invalidBodyFormat, data, r.ContentLength)
+	}
+	if r.Header.Get(contentTypeHeader) != pngContentType || r.Header.Get(photoMetadataHeader) != encodedMetadata {
+		t.Error(missingMetadataFailure)
+	}
+	if r.Header.Get(trailerHeader) != r2TestEmptyValue {
+		t.Error(checksumTrailerFailure)
+	}
+	w.Header().Set(etagHeader, responseETag)
 }

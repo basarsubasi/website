@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	postKind            = "post"
-	emptyColor          = ""
+	postKind = "post"
+
 	deletePostOperation = "delete-post"
 )
 
@@ -47,7 +47,7 @@ func (r *Repository) CreatePost(ctx context.Context, post article.Post) (article
 	post.CreatedAt = database.Now()
 	post.UpdatedAt = post.CreatedAt
 	err := r.store.Change(ctx, func(tx *sql.Tx) error {
-		if err := database.Insert(ctx, tx, postKind, post.ID, post.Slug, emptyColor, post.Published, post.CreatedAt, post); err != nil {
+		if err := database.InsertPost(ctx, tx, post); err != nil {
 			return err
 		}
 		return database.Enqueue(ctx, tx, postKind, post)

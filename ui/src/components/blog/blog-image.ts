@@ -48,7 +48,12 @@ export const BlogImage = Node.create({
       update();
       return {
         dom, contentDOM: caption,
-        update(node) { if (node.type.name !== "blogImage") return false; current = node; update(); return true; },
+        update(node) {
+          if (node.type.name !== "blogImage") return false;
+          current = node;
+          update();
+          return true;
+        },
         selectNode() { dom.classList.add("ProseMirror-selectednode"); },
         deselectNode() { dom.classList.remove("ProseMirror-selectednode"); },
         ignoreMutation: mutation => mutation.type !== "selection" && !caption.contains(mutation.target),
@@ -61,7 +66,7 @@ export const BlogImage = Node.create({
   addAttributes() {
     return { src: { default: "" }, width: { default: 100 }, intrinsicWidth: { default: null }, intrinsicHeight: { default: null } };
   },
-  parseHTML() { return [{ tag: "figure[data-blog-image]", contentElement: "figcaption", getAttrs: element => ({ src: imageURL(element.querySelector("img")?.getAttribute("src")), width: imageWidth(element.getAttribute("data-width")), intrinsicWidth: imageDimension(element.querySelector("img")?.getAttribute("width")), intrinsicHeight: imageDimension(element.querySelector("img")?.getAttribute("height")) }) }]; },
+  parseHTML() { return [{ tag: "figure[data-blog-image]", contentElement: "figcaption", getAttrs: element => ({ src: imageURL(element.querySelector("img")?.getAttribute("src")), width: imageWidth(element.dataset.width), intrinsicWidth: imageDimension(element.querySelector("img")?.getAttribute("width")), intrinsicHeight: imageDimension(element.querySelector("img")?.getAttribute("height")) }) }]; },
   renderHTML({ node }) {
     return ["figure", { "data-blog-image": "", "data-width": imageWidth(node.attrs.width), class: "blog-image" },
       ["img", { style: `width: ${imageWidth(node.attrs.width)}%; margin: 0 auto`, src: imageURL(node.attrs.src), alt: "", width: imageDimension(node.attrs.intrinsicWidth), height: imageDimension(node.attrs.intrinsicHeight), decoding: "async", contenteditable: "false" }],

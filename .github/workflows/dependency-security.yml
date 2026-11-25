@@ -25,8 +25,6 @@ jobs:
       # Load the versions from go.mod/go.sum, not the vendored source tree.
       GOFLAGS: -mod=readonly
       CGO_ENABLED: "0"
-      # renovate: datasource=go depName=golang.org/x/vuln
-      GOVULNCHECK_VERSION: v1.9.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,11 +33,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install govulncheck
-        run: go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
       # Text output preserves the nonzero exit status for reachable vulnerabilities.
       - name: Check Go packages and their dependencies
-        run: govulncheck ./...
+        run: go -C .github/tools tool govulncheck -C ../.. ./...
 
   npm-audit:
     runs-on: ubuntu-26.04

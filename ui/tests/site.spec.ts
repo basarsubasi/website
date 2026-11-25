@@ -398,8 +398,7 @@ for (const kind of ["photo", "blog"] as const) {
     let dialog = await prompt;
     expect(dialog.type()).toBe("beforeunload");
     await dialog.dismiss();
-    await expect(field).toHaveText(kind === "blog" ? "Unsaved changes" : "");
-    if (kind === "photo") await expect(field).toHaveValue("Unsaved changes");
+    await expect(field).toHaveValue("Unsaved changes");
 
     prompt = page.waitForEvent("dialog");
     const cancelClick = cancel.click();

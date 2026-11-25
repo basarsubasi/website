@@ -86,7 +86,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	s.sessions[sha256.Sum256([]byte(token))] = expires
 	s.mu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: adminSessionCookie, Value: token, Path: sessionCookiePath, HttpOnly: true, Secure: s.cfg.SecureCookies, SameSite: http.SameSiteStrictMode, MaxAge: 21600, Expires: expires})
+	cookie := sessionCookie()
+	cookie.Value = token
+	cookie.MaxAge = 21600
+	cookie.Expires = expires
+	http.SetCookie(w, cookie)
 	reply(w, http.StatusOK, map[string]bool{authAuthenticatedField: true})
 }
 
@@ -96,6 +100,12 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		delete(s.sessions, sha256.Sum256([]byte(cookie.Value)))
 		s.mu.Unlock()
 	}
-	http.SetCookie(w, &http.Cookie{Name: adminSessionCookie, Path: sessionCookiePath, HttpOnly: true, Secure: s.cfg.SecureCookies, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+	cookie := sessionCookie()
+	cookie.MaxAge = -1
+	http.SetCookie(w, cookie)
 	reply(w, http.StatusNoContent, nil)
+}
+
+func sessionCookie() *http.Cookie {
+	return &http.Cookie{Name: adminSessionCookie, Path: sessionCookiePath, HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode}
 }

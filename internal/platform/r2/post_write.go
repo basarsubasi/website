@@ -63,7 +63,7 @@ func (r *Repository) savePost(ctx context.Context, id, slug string, prepare func
 	// An uncertain commit may still reference the new object. Only remove it
 	// when we know the catalog did not commit.
 	if err != nil && newKey != postWriteEmptyString && !errors.Is(err, domain.ErrUncertain) {
-		cleanup, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		if cleanupErr := r.objects.Delete(cleanup, newKey); cleanupErr != nil {
 			log.Printf(postCleanupErrorFormat, newKey, cleanupErr)

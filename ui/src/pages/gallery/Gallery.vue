@@ -9,6 +9,7 @@ const route = useRoute(),
   loading = ref(false),
   error = ref("");
 const loadedImages = ref(new Set<string>());
+const galleryColors = new Map([["/bw-photos", "bw"], ["/color-photos", "color"]]);
 let request = 0;
 const page = computed(() =>
   Math.max(1, Number.parseInt(String(route.query.page)) || 1),
@@ -21,12 +22,7 @@ watch(
     error.value = "";
     images.value = [];
     loadedImages.value.clear();
-    const color =
-      route.path === "/bw-photos"
-        ? "bw"
-        : route.path === "/color-photos"
-          ? "color"
-          : "";
+    const color = galleryColors.get(route.path) ?? "";
     try {
       const data = await api<ListResponse<Photo>>(
         `/images?page=${page.value}&limit=9&color=${color}`,

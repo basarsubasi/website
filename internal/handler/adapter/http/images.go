@@ -52,7 +52,7 @@ func (s *Server) uploadImage(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, invalidMetadataMessage)
 		return
 	}
-	if err := d.Decode(new(any)); err != io.EOF {
+	if d.Decode(new(any)) != io.EOF {
 		fail(w, http.StatusBadRequest, singleMetadataObjectMessage)
 		return
 	}

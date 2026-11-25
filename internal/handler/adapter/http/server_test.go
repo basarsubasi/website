@@ -215,7 +215,7 @@ func (c *client) login() {
 	}
 	c.cookie = cookies[0]
 	assertV4(c.t, c.cookie.Value)
-	if !c.cookie.HttpOnly || c.cookie.SameSite != http.SameSiteStrictMode {
+	if !c.cookie.Secure || !c.cookie.HttpOnly || c.cookie.SameSite != http.SameSiteStrictMode {
 		c.t.Fatal(insecureCookieFailure)
 	}
 }
@@ -330,7 +330,10 @@ func TestBlogAPIAndDraftVisibility(t *testing.T) {
 	c.login()
 	c.request(serverTestDeleteMethod, adminPostPathPrefix+post.ID, nil, 204)
 	c.request(serverTestGetMethod, firstPostPath, nil, 404)
-	c.request(serverTestPostMethod, logoutPath, nil, 204)
+	cleared := c.request(serverTestPostMethod, logoutPath, nil, http.StatusNoContent).Result().Cookies()
+	if len(cleared) != 1 || !cleared[0].Secure || !cleared[0].HttpOnly || cleared[0].MaxAge >= 0 {
+		t.Fatal(insecureCookieFailure)
+	}
 	c.request(serverTestGetMethod, serverTestAdminPostsPath, nil, 401)
 }
 func TestAdminNamespaceRequiresSessionBeforeRouting(t *testing.T) {

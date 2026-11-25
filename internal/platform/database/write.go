@@ -8,6 +8,8 @@ import (
 	"time"
 
 	store "github.com/basarsubasi/website/gen/sqlc/storage"
+	"github.com/basarsubasi/website/internal/module/blog/domain/article"
+	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/shared/domain"
 )
 
@@ -16,13 +18,21 @@ const (
 	uncertainWriteFormat = "%w: %v"
 )
 
-func Insert(ctx context.Context, tx *sql.Tx, kind, id, slug, color string, published int64, created string, v any) error {
-	raw, err := json.Marshal(v)
+func InsertImage(ctx context.Context, tx *sql.Tx, image photo.Image) error {
+	return insert(ctx, tx, store.InsertContentParams{Kind: imageKind, ID: image.UUID, Color: image.Color, CreatedAt: image.CreatedAt}, image)
+}
+
+func InsertPost(ctx context.Context, tx *sql.Tx, post article.Post) error {
+	return insert(ctx, tx, store.InsertContentParams{Kind: postKind, ID: post.ID, Slug: post.Slug, Published: post.Published, CreatedAt: post.CreatedAt}, post)
+}
+
+func insert(ctx context.Context, tx *sql.Tx, row store.InsertContentParams, value any) error {
+	raw, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
-	err = store.New(tx).InsertContent(ctx, store.InsertContentParams{Kind: kind, ID: id, Slug: slug, Color: color, Published: published, CreatedAt: created, Payload: raw})
-	return dbError(err)
+	row.Payload = raw
+	return dbError(store.New(tx).InsertContent(ctx, row))
 }
 
 func Enqueue(ctx context.Context, tx *sql.Tx, op string, v any) error {

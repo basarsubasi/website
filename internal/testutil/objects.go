@@ -206,23 +206,11 @@ func s3Handler(objects *Objects) http.Handler {
 			return
 		}
 		key := parts[1]
-		fail := func(err error) {
-			status, code := 500, internalErrorCode
-			if err == domain.ErrNotFound {
-				status, code = 404, noSuchKeyCode
-			}
-			if err == domain.ErrConflict {
-				status, code = 412, preconditionFailedCode
-			}
-			w.Header().Set(contentTypeHeader, xmlContentType)
-			w.WriteHeader(status)
-			fmt.Fprintf(w, errorXMLFormat, code)
-		}
 		switch r.Method {
 		case getMethod:
 			raw, etag, err := objects.Read(r.Context(), key)
 			if err != nil {
-				fail(err)
+				writeS3Error(w, err)
 				return
 			}
 			w.Header().Set(etagHeader, etag)
@@ -233,56 +221,13 @@ func s3Handler(objects *Objects) http.Handler {
 			w.Write(raw)
 		case putMethod:
 			if source := r.Header.Get(copySourceHeader); source != emptyString {
-				decoded, err := url.PathUnescape(source)
-				if err != nil {
-					fail(err)
-					return
-				}
-				_, sourceKey, _ := strings.Cut(decoded, keySeparator)
-				raw, _, err := objects.Read(r.Context(), sourceKey)
-				if err != nil {
-					fail(err)
-					return
-				}
-				metadata := map[string]string{}
-				for name := range r.Header {
-					if suffix, ok := strings.CutPrefix(strings.ToLower(name), metadataHeaderPrefix); ok {
-						metadata[suffix] = r.Header.Get(name)
-					}
-				}
-				_, err = objects.Put(r.Context(), key, bytes.NewReader(raw), int64(len(raw)), r.Header.Get(contentTypeHeader), metadata)
-				if err != nil {
-					fail(err)
-					return
-				}
-				w.Header().Set(contentTypeHeader, xmlContentType)
-				fmt.Fprint(w, copyResultXML)
-				return
+				objects.serveCopy(w, r, key, source)
+			} else {
+				objects.servePut(w, r, key)
 			}
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				fail(err)
-				return
-			}
-			if r.Header.Get(ifMatchHeader) != emptyString || r.Header.Get(ifNoneMatchHeader) != emptyString {
-				etag, err := objects.PutIf(r.Context(), key, body, r.Header.Get(ifMatchHeader), r.Header.Get(ifNoneMatchHeader) == anyETag)
-				if err != nil {
-					fail(err)
-					return
-				}
-				w.Header().Set(etagHeader, etag)
-				return
-			}
-			_, err = objects.Put(r.Context(), key, strings.NewReader(string(body)), int64(len(body)), r.Header.Get(contentTypeHeader), nil)
-			if err != nil {
-				fail(err)
-				return
-			}
-			_, etag, _ := objects.Read(r.Context(), key)
-			w.Header().Set(etagHeader, etag)
 		case deleteMethod:
 			if err := objects.Delete(r.Context(), key); err != nil {
-				fail(err)
+				writeS3Error(w, err)
 				return
 			}
 			w.WriteHeader(204)
@@ -290,4 +235,68 @@ func s3Handler(objects *Objects) http.Handler {
 			http.Error(w, unsupportedMethodMessage, 405)
 		}
 	})
+}
+
+func writeS3Error(w http.ResponseWriter, err error) {
+	status, code := 500, internalErrorCode
+	if err == domain.ErrNotFound {
+		status, code = 404, noSuchKeyCode
+	}
+	if err == domain.ErrConflict {
+		status, code = 412, preconditionFailedCode
+	}
+	w.Header().Set(contentTypeHeader, xmlContentType)
+	w.WriteHeader(status)
+	fmt.Fprintf(w, errorXMLFormat, code)
+}
+
+func (objects *Objects) serveCopy(w http.ResponseWriter, r *http.Request, key, source string) {
+	decoded, err := url.PathUnescape(source)
+	if err != nil {
+		writeS3Error(w, err)
+		return
+	}
+	_, sourceKey, _ := strings.Cut(decoded, keySeparator)
+	raw, _, err := objects.Read(r.Context(), sourceKey)
+	if err != nil {
+		writeS3Error(w, err)
+		return
+	}
+	metadata := map[string]string{}
+	for name := range r.Header {
+		if suffix, ok := strings.CutPrefix(strings.ToLower(name), metadataHeaderPrefix); ok {
+			metadata[suffix] = r.Header.Get(name)
+		}
+	}
+	_, err = objects.Put(r.Context(), key, bytes.NewReader(raw), int64(len(raw)), r.Header.Get(contentTypeHeader), metadata)
+	if err != nil {
+		writeS3Error(w, err)
+		return
+	}
+	w.Header().Set(contentTypeHeader, xmlContentType)
+	fmt.Fprint(w, copyResultXML)
+}
+
+func (objects *Objects) servePut(w http.ResponseWriter, r *http.Request, key string) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeS3Error(w, err)
+		return
+	}
+	if r.Header.Get(ifMatchHeader) != emptyString || r.Header.Get(ifNoneMatchHeader) != emptyString {
+		etag, err := objects.PutIf(r.Context(), key, body, r.Header.Get(ifMatchHeader), r.Header.Get(ifNoneMatchHeader) == anyETag)
+		if err != nil {
+			writeS3Error(w, err)
+			return
+		}
+		w.Header().Set(etagHeader, etag)
+		return
+	}
+	_, err = objects.Put(r.Context(), key, bytes.NewReader(body), int64(len(body)), r.Header.Get(contentTypeHeader), nil)
+	if err != nil {
+		writeS3Error(w, err)
+		return
+	}
+	_, etag, _ := objects.Read(r.Context(), key)
+	w.Header().Set(etagHeader, etag)
 }

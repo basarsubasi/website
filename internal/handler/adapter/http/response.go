@@ -88,7 +88,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 		fail(w, http.StatusBadRequest, invalidJSONMessage)
 		return false
 	}
-	if err := d.Decode(new(any)); err != io.EOF {
+	if d.Decode(new(any)) != io.EOF {
 		fail(w, http.StatusBadRequest, singleJSONObjectMessage)
 		return false
 	}
