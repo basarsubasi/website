@@ -13,7 +13,8 @@ import (
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -124,7 +125,7 @@ func TestPublicReadsReuseCatalogAndPostCache(t *testing.T) {
 		if err := repo.Ping(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := repo.GetPost(context.Background(), fmt.Sprintf(missingIDFormat, i)); !errors.Is(err, domain.ErrNotFound) {
+		if _, err := repo.GetPost(context.Background(), fmt.Sprintf(missingIDFormat, i)); !errors.Is(err, storage.ErrNotFound) {
 			t.Fatal(err)
 		}
 		if got, err := repo.GetPost(context.Background(), post.Slug); err != nil || got.ID != post.ID {
@@ -182,7 +183,7 @@ func TestSlowPostReadsAreBoundedAndDoNotBlockGallery(t *testing.T) {
 		}(i)
 		awaitRead(t, store)
 	}
-	if _, err := repo.GetPost(context.Background(), fmt.Sprintf(postIDFormat, maxConcurrentReads)); !errors.Is(err, domain.ErrBusy) {
+	if _, err := repo.GetPost(context.Background(), fmt.Sprintf(postIDFormat, maxConcurrentReads)); !errors.Is(err, storage.ErrBusy) {
 		t.Fatalf(unboundedWorkFormat, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -199,7 +200,7 @@ func TestSlowPostReadsAreBoundedAndDoNotBlockGallery(t *testing.T) {
 	}
 	gallery := make(chan error, 1)
 	go func() {
-		_, err := repo.ListImages(context.Background(), domain.Pagination{Page: 1, Limit: 10}, readCacheTestEmptyValue)
+		_, err := repo.ListImages(context.Background(), pagination.Pagination{Page: 1, Limit: 10}, readCacheTestEmptyValue)
 		gallery <- err
 	}()
 	select {
@@ -244,13 +245,13 @@ func TestPostEditsAndDeletesInvalidatePublicVisibility(t *testing.T) {
 	if _, err := repo.UpdatePost(context.Background(), post.ID, article.PostInput{Slug: post.Slug, Body: draftSlug, Published: 0}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.GetPost(context.Background(), post.Slug); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := repo.GetPost(context.Background(), post.Slug); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf(exposedDraftFormat, err)
 	}
 	if err := repo.DeletePost(context.Background(), post.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.GetPostByID(context.Background(), post.ID); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := repo.GetPostByID(context.Background(), post.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf(returnedDeletedPostFormat, err)
 	}
 }

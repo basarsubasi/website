@@ -7,15 +7,16 @@ import (
 	"time"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const allColors = ""
 
-func (r *Repository) ListImages(ctx context.Context, p domain.Pagination, color string) (domain.Page[photo.Image], error) {
+func (r *Repository) ListImages(ctx context.Context, p pagination.Pagination, color string) (pagination.Page[photo.Image], error) {
 	state, err := r.snapshot(ctx)
 	if err != nil {
-		return domain.Page[photo.Image]{}, err
+		return pagination.Page[photo.Image]{}, err
 	}
 	items := []photo.Image{}
 	for _, photo := range state.Images {
@@ -36,7 +37,7 @@ func (r *Repository) GetImage(ctx context.Context, id string) (photo.Image, erro
 	}
 	found, ok := state.Images[id]
 	if !ok {
-		return photo.Image{}, domain.ErrNotFound
+		return photo.Image{}, storage.ErrNotFound
 	}
 	return found, nil
 }
@@ -47,7 +48,7 @@ func (r *Repository) CreateImage(ctx context.Context, photo photo.Image) (photo.
 	photo.CreatedAt = time.Now().UTC().Format(timestampLayout)
 	err := r.mutate(ctx, func(next *catalog) error {
 		if _, exists := next.Images[photo.UUID]; exists {
-			return domain.ErrConflict
+			return storage.ErrConflict
 		}
 		next.Images[photo.UUID] = photo
 		return nil
@@ -63,7 +64,7 @@ func (r *Repository) UpdateImage(ctx context.Context, id string, p photo.PhotoIn
 		var exists bool
 		photo, exists = next.Images[id]
 		if !exists {
-			return domain.ErrNotFound
+			return storage.ErrNotFound
 		}
 		photo.Name = p.Name
 		photo.Country = p.Country
@@ -82,7 +83,7 @@ func (r *Repository) DeleteImage(ctx context.Context, id string) error {
 	return r.mutate(ctx, func(next *catalog) error {
 		image, exists := next.Images[id]
 		if !exists {
-			return domain.ErrNotFound
+			return storage.ErrNotFound
 		}
 		delete(next.Images, id)
 		next.Garbage = append(next.Garbage, image.ObjectKey)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -109,7 +109,7 @@ func TestCatalogUpgradeFailureAndAmbiguousCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	expireCatalog(reopened)
-	page, err := reopened.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, true)
+	page, err := reopened.ListPosts(ctx, pagination.Pagination{Page: 1, Limit: 10}, true)
 	if err != nil || page.Total != 6 {
 		t.Fatalf(partitionReadErrorFormat, page.Total, err)
 	}

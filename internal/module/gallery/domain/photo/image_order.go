@@ -4,7 +4,8 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
@@ -27,7 +28,7 @@ func (image Image) GalleryOrderKey() string {
 // Only the changed photos need to be persisted.
 func MoveImage(images []Image, id, direction string) ([]Image, error) {
 	if direction != moveUp && direction != moveDown {
-		return nil, domain.Invalid(invalidDirectionMessage)
+		return nil, validation.Invalid(invalidDirectionMessage)
 	}
 	slices.SortFunc(images, func(a, b Image) int { return cmp.Compare(b.GalleryOrderKey(), a.GalleryOrderKey()) })
 	for i := range images {
@@ -45,5 +46,5 @@ func MoveImage(images []Image, id, direction string) ([]Image, error) {
 		a.OrderKey, b.OrderKey = b.GalleryOrderKey(), a.GalleryOrderKey()
 		return []Image{a, b}, nil
 	}
-	return nil, domain.ErrNotFound
+	return nil, storage.ErrNotFound
 }

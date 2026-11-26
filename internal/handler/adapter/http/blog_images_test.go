@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -68,7 +68,7 @@ func TestBlogImageUpload(t *testing.T) {
 	}
 	key := strings.TrimPrefix(result.URL, bucketBaseURL)
 	c.request(blogImagesTestDeleteMethod, adminBlogPathPrefix+key, nil, 204)
-	if _, _, err := c.objects.Read(context.Background(), key); !errors.Is(err, domain.ErrNotFound) {
+	if _, _, err := c.objects.Read(context.Background(), key); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf(failedDeletionFormat, err)
 	}
 
@@ -100,7 +100,7 @@ func TestBlogMediaUploadAndDelete(t *testing.T) {
 				t.Fatal(mediaObjectMismatch, err)
 			}
 			c.request(http.MethodDelete, adminBlogPathPrefix+key, nil, http.StatusNoContent)
-			if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
+			if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, storage.ErrNotFound) {
 				t.Fatalf(failedDeletionFormat, err)
 			}
 		})

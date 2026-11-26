@@ -4,35 +4,39 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 
 	"github.com/pion/opus/pkg/oggreader"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
-	AudioContentType = "audio/ogg"
-	audioExtension   = "opus"
-	invalidAudio     = "Upload an Ogg Opus audio file"
-	opusTags         = "OpusTags"
-	oggCapture       = "OggS"
-	oggHeaderSize    = 27
-	oggBOS           = 2
-	oggEOS           = 4
+	audioTooLargeMessage = "Audio must be at most 25 MiB"
+	AudioContentType     = "audio/ogg"
+	audioExtension       = "opus"
+	invalidAudio         = "Upload an Ogg Opus audio file"
+	opusTags             = "OpusTags"
+	oggCapture           = "OggS"
+	oggHeaderSize        = 27
+	oggBOS               = 2
+	oggEOS               = 4
 )
+
+var ErrAudioTooLarge = errors.New(audioTooLargeMessage)
 
 // InspectAudio validates every logical stream, including chained Ogg files,
 // then rewinds the upload so storage receives the original bytes.
 func InspectAudio(file io.ReadSeeker, size int64) (FileInfo, error) {
 	if size > MaxSize {
-		return FileInfo{}, domain.ErrAudioTooLarge
+		return FileInfo{}, ErrAudioTooLarge
 	}
 	source := &io.LimitedReader{R: file, N: size}
 	input := bufio.NewReader(source)
 	for {
 		if !validOpusStream(&oggStream{input: input}) {
-			return FileInfo{}, domain.Invalid(invalidAudio)
+			return FileInfo{}, validation.Invalid(invalidAudio)
 		}
 		if source.N == 0 && input.Buffered() == 0 {
 			break

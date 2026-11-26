@@ -10,7 +10,7 @@ import (
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -35,7 +35,7 @@ func (r *Repository) savePost(ctx context.Context, id, slug string, prepare func
 	err := r.mutate(ctx, func(next *catalog) error {
 		for otherID, entry := range next.Posts {
 			if otherID != id && entry.Metadata.Slug == slug {
-				return domain.ErrConflict
+				return storage.ErrConflict
 			}
 		}
 		entry, exists := next.Posts[id]
@@ -53,7 +53,7 @@ func (r *Repository) savePost(ctx context.Context, id, slug string, prepare func
 		}
 		newKey = postKeyPrefix + id + keySeparator + uuid.NewV4().String() + jsonSuffix
 		if _, err := r.objects.Put(ctx, newKey, bytes.NewReader(raw), int64(len(raw)), postWriteJsonContentType, map[string]string{postIDMetadataKey: id}); err != nil {
-			return &domain.StorageError{Operation: writePostOperation, Err: err}
+			return &storage.Error{Operation: writePostOperation, Err: err}
 		}
 		summary := post
 		summary.Body = postWriteEmptyString
@@ -62,7 +62,7 @@ func (r *Repository) savePost(ctx context.Context, id, slug string, prepare func
 	})
 	// An uncertain commit may still reference the new object. Only remove it
 	// when we know the catalog did not commit.
-	if err != nil && newKey != postWriteEmptyString && !errors.Is(err, domain.ErrUncertain) {
+	if err != nil && newKey != postWriteEmptyString && !errors.Is(err, storage.ErrUncertain) {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		defer cancel()
 		if cleanupErr := r.objects.Delete(cleanup, newKey); cleanupErr != nil {

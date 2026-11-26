@@ -11,7 +11,8 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -66,7 +67,7 @@ func TestImageOrderPersistsAcrossPagesRestartAndBackup(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := repo.gallery.MoveImage(ctx, missingPhotoID, moveUp); !errors.Is(err, domain.ErrNotFound) {
+	if err := repo.gallery.MoveImage(ctx, missingPhotoID, moveUp); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(err)
 	}
 	if err := repo.gallery.MoveImage(ctx, expected[0], invalidDirection); err == nil {
@@ -97,7 +98,7 @@ func checkImageOrder(t *testing.T, ctx context.Context, r *testStore, expected [
 	for _, color := range []string{allColors, imageOrderTestBlackAndWhite} {
 		ids := []string{}
 		for page := 1; page <= 2; page++ {
-			got, err := r.gallery.ListImages(ctx, domain.Pagination{Page: int64(page), Limit: 20}, color)
+			got, err := r.gallery.ListImages(ctx, pagination.Pagination{Page: int64(page), Limit: 20}, color)
 			if err != nil {
 				t.Fatal(err)
 			}

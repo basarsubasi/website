@@ -1,43 +1,47 @@
 package media
 
 import (
+	"errors"
 	"io"
 	"slices"
 
 	"github.com/Eyevinn/mp4ff/mp4"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
-	MaxVideoSize     = 100 << 20
-	VideoContentType = "video/mp4"
-	videoExtension   = "mp4"
-	invalidVideo     = "Upload an MP4 with AV1 video and optional Opus audio"
-	fileTypeBox      = "ftyp"
-	movieBox         = "moov"
-	mediaDataBox     = "mdat"
-	videoHandler     = "vide"
-	audioHandler     = "soun"
-	av1Entry         = "av01"
-	opusEntry        = "Opus"
+	videoTooLargeMessage = "Video must be at most 100 MiB"
+	MaxVideoSize         = 100 << 20
+	VideoContentType     = "video/mp4"
+	videoExtension       = "mp4"
+	invalidVideo         = "Upload an MP4 with AV1 video and optional Opus audio"
+	fileTypeBox          = "ftyp"
+	movieBox             = "moov"
+	mediaDataBox         = "mdat"
+	videoHandler         = "vide"
+	audioHandler         = "soun"
+	av1Entry             = "av01"
+	opusEntry            = "Opus"
 	// Bound metadata parsing independently of the encoded video payload.
 	maxMovieHeader    = 2 << 20
 	maxFileTypeHeader = 4096
 	maxTopLevelBoxes  = 8192
 )
 
+var ErrVideoTooLarge = errors.New(videoTooLargeMessage)
+
 // InspectVideo reads track metadata and skips the encoded frames. The original
 // file is rewound for streaming to storage, including when moov follows mdat.
 func InspectVideo(file io.ReadSeeker, size int64) (FileInfo, error) {
 	if size > MaxVideoSize {
-		return FileInfo{}, domain.ErrVideoTooLarge
+		return FileInfo{}, ErrVideoTooLarge
 	}
 	var movie videoMetadata
 	for offset, count := int64(0), 0; offset < size; count++ {
 		hdr, err := mp4.DecodeHeader(file)
 		if err != nil || hdr.Size > uint64(size-offset) || count >= maxTopLevelBoxes {
-			return FileInfo{}, domain.Invalid(invalidVideo)
+			return FileInfo{}, validation.Invalid(invalidVideo)
 		}
 		if err := movie.readBox(hdr, uint64(offset), file); err != nil {
 			return FileInfo{}, err
@@ -48,7 +52,7 @@ func InspectVideo(file io.ReadSeeker, size int64) (FileInfo, error) {
 		}
 	}
 	if !movie.hasType || !movie.hasData || movie.info.Width == 0 {
-		return FileInfo{}, domain.Invalid(invalidVideo)
+		return FileInfo{}, validation.Invalid(invalidVideo)
 	}
 	_, err := file.Seek(0, io.SeekStart)
 	return movie.info, err
@@ -63,7 +67,7 @@ func (m *videoMetadata) readBox(hdr mp4.BoxHeader, offset uint64, file io.Reader
 	switch hdr.Name {
 	case fileTypeBox:
 		if m.hasType || !isMP4FileType(hdr, file) {
-			return domain.Invalid(invalidVideo)
+			return validation.Invalid(invalidVideo)
 		}
 		m.hasType = true
 	case movieBox:
@@ -76,19 +80,19 @@ func (m *videoMetadata) readBox(hdr mp4.BoxHeader, offset uint64, file io.Reader
 
 func (m *videoMetadata) readMovieBox(hdr mp4.BoxHeader, offset uint64, file io.Reader) error {
 	if m.info.Width != 0 || hdr.Size > maxMovieHeader {
-		return domain.Invalid(invalidVideo)
+		return validation.Invalid(invalidVideo)
 	}
 	box, err := mp4.DecodeMoov(hdr, offset, file)
 	if err != nil {
-		return domain.Invalid(invalidVideo)
+		return validation.Invalid(invalidVideo)
 	}
 	for _, track := range box.(*mp4.MoovBox).Traks {
 		if !m.acceptTrack(track) {
-			return domain.Invalid(invalidVideo)
+			return validation.Invalid(invalidVideo)
 		}
 	}
 	if m.info.Width == 0 {
-		return domain.Invalid(invalidVideo)
+		return validation.Invalid(invalidVideo)
 	}
 	return nil
 }

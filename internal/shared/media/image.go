@@ -1,16 +1,18 @@
 package media
 
 import (
+	"errors"
 	"image"
 	_ "image/gif"  // Register the GIF decoder for image.DecodeConfig.
 	_ "image/jpeg" // Register the JPEG decoder for image.DecodeConfig.
 	_ "image/png"  // Register the PNG decoder for image.DecodeConfig.
 	"io"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
+	tooLargeMessage         = "photo must be between 1 byte and 25 MiB"
 	invalidImageMessage     = "Upload a valid JPEG, PNG, or GIF image"
 	jpegFormat              = "jpeg"
 	jpegContentType         = "image/jpeg"
@@ -22,6 +24,8 @@ const (
 	jpegExtension           = "jpg"
 )
 
+var ErrTooLarge = errors.New(tooLargeMessage)
+
 const MaxSize = 25 << 20
 
 type FileInfo struct {
@@ -31,15 +35,15 @@ type FileInfo struct {
 
 func Inspect(file io.ReadSeeker, size int64) (FileInfo, error) {
 	if size < 1 || size > MaxSize {
-		return FileInfo{}, domain.ErrTooLarge
+		return FileInfo{}, ErrTooLarge
 	}
 	dimensions, format, err := image.DecodeConfig(file)
 	if err != nil {
-		return FileInfo{}, domain.Invalid(invalidImageMessage)
+		return FileInfo{}, validation.Invalid(invalidImageMessage)
 	}
 	contentType, ok := map[string]string{jpegFormat: jpegContentType, pngFormat: pngContentType, gifFormat: gifContentType}[format]
 	if !ok {
-		return FileInfo{}, domain.Invalid(unsupportedImageMessage)
+		return FileInfo{}, validation.Invalid(unsupportedImageMessage)
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return FileInfo{}, err

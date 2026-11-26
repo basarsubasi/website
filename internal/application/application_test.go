@@ -14,7 +14,7 @@ import (
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	gallerysqlite "github.com/basarsubasi/website/internal/module/gallery/adapter/sqlite"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -353,7 +353,7 @@ func TestEphemeralApplicationRestoresAcknowledgedWrites(t *testing.T) {
 	if got, err := blogsqlite.New(restored.Repository).GetPostByID(ctx, post.ID); err != nil || got != post {
 		t.Fatal(got, err)
 	}
-	page, err := gallerysqlite.New(restored.Repository).ListImages(ctx, domain.Pagination{Page: 1, Limit: 9}, emptyValue)
+	page, err := gallerysqlite.New(restored.Repository).ListImages(ctx, pagination.Pagination{Page: 1, Limit: 9}, emptyValue)
 	if err != nil || len(page.Data) != 2 || page.Data[0].UUID != first.UUID {
 		t.Fatal(page, err)
 	}

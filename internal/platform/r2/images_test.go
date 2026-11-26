@@ -7,7 +7,8 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -22,7 +23,7 @@ const (
 
 func galleryPage(t *testing.T, repo *r2.Repository, page int64, color string, total int64, want ...string) {
 	t.Helper()
-	result, err := repo.ListImages(t.Context(), domain.Pagination{Page: page, Limit: 1}, color)
+	result, err := repo.ListImages(t.Context(), pagination.Pagination{Page: page, Limit: 1}, color)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,16 +89,16 @@ func TestGalleryCatalogRejectsConflictingAndMissingImages(t *testing.T) {
 		t.Fatal(err)
 	}
 	image.Name = newTitle
-	if _, err := repo.CreateImage(ctx, image); !errors.Is(err, domain.ErrConflict) {
+	if _, err := repo.CreateImage(ctx, image); !errors.Is(err, storage.ErrConflict) {
 		t.Fatal(err)
 	}
-	if _, err := repo.UpdateImage(ctx, missingImageID, photo.PhotoInput{Color: colorImage}); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := repo.UpdateImage(ctx, missingImageID, photo.PhotoInput{Color: colorImage}); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(err)
 	}
-	if err := repo.MoveImage(ctx, missingImageID, movePhotoUp); !errors.Is(err, domain.ErrNotFound) {
+	if err := repo.MoveImage(ctx, missingImageID, movePhotoUp); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(err)
 	}
-	if err := repo.DeleteImage(ctx, missingImageID); !errors.Is(err, domain.ErrNotFound) {
+	if err := repo.DeleteImage(ctx, missingImageID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(err)
 	}
 	got, err := repo.GetImage(ctx, created.UUID)

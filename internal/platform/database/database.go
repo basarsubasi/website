@@ -15,7 +15,7 @@ import (
 
 	"github.com/basarsubasi/website/database/migrations"
 	"github.com/basarsubasi/website/internal/platform/backup"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -107,11 +107,11 @@ func (r *Store) Ping(ctx context.Context) error { return r.db.PingContext(ctx) }
 
 func dbError(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ErrNotFound
+		return storage.ErrNotFound
 	}
 	var e *sqlite.Error
 	if errors.As(err, &e) && (e.Code() == 1555 || e.Code() == 2067) {
-		return domain.ErrConflict
+		return storage.ErrConflict
 	}
 	return err
 }

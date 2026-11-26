@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -40,7 +40,7 @@ func ValidateAssetSources(body string, allowed media.Origin) error {
 	}
 	var blocks []map[string]any
 	if err := json.Unmarshal([]byte(document), &blocks); err != nil || blocks == nil {
-		return domain.Invalid(invalidDocumentMessage)
+		return validation.Invalid(invalidDocumentMessage)
 	}
 	for _, block := range blocks {
 		kind, _ := block[nodeTypeKey].(string)
@@ -52,10 +52,10 @@ func ValidateAssetSources(body string, allowed media.Origin) error {
 		src, _ := attrs[sourceKey].(string)
 		origin, err := media.ParseOrigin(src)
 		if err != nil || origin != allowed {
-			return domain.Invalid(rule.message)
+			return validation.Invalid(rule.message)
 		}
 		if rule.validFilename != nil && !isMediaObjectURL(src, rule.prefix, rule.validFilename) {
-			return domain.Invalid(rule.message)
+			return validation.Invalid(rule.message)
 		}
 	}
 	return nil

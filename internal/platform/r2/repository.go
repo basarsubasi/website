@@ -10,7 +10,7 @@ import (
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -37,11 +37,11 @@ type Repository struct {
 
 func OpenRepository(ctx context.Context, objects ObjectStore) (*Repository, error) {
 	if objects == nil {
-		return nil, domain.ErrUnavailable
+		return nil, storage.ErrUnavailable
 	}
 	repo := &Repository{objects: objects, reads: newReadCache()}
 	if err := repo.load(ctx); err != nil {
-		if !errors.Is(err, domain.ErrNotFound) {
+		if !errors.Is(err, storage.ErrNotFound) {
 			return nil, fmt.Errorf(loadCatalogErrorFormat, err)
 		}
 		empty := catalog{

@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -44,14 +43,14 @@ func (s *Server) uploadBlogImage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) uploadBlogVideo(w http.ResponseWriter, r *http.Request) {
 	uploadBlogAsset(w, r, blogUploadForm{
 		field: videoFormField, requiredMessage: videoRequiredMessage, singleFileMessage: singleVideoRequiredMessage,
-		maxFileSize: media.MaxVideoSize, tooLargeMessage: domain.ErrVideoTooLarge.Error(),
+		maxFileSize: media.MaxVideoSize, tooLargeMessage: media.ErrVideoTooLarge.Error(),
 	}, s.blog.Assets.UploadBlogVideo)
 }
 
 func (s *Server) uploadBlogAudio(w http.ResponseWriter, r *http.Request) {
 	uploadBlogAsset(w, r, blogUploadForm{
 		field: audioFormField, requiredMessage: audioRequiredMessage, singleFileMessage: singleAudioRequiredMessage,
-		maxFileSize: media.MaxSize, tooLargeMessage: domain.ErrAudioTooLarge.Error(),
+		maxFileSize: media.MaxSize, tooLargeMessage: media.ErrAudioTooLarge.Error(),
 	}, s.blog.Assets.UploadBlogAudio)
 }
 

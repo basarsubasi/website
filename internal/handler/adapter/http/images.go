@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -90,11 +90,11 @@ func (s *Server) deleteImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listImages(w http.ResponseWriter, r *http.Request) {
-	page, limit, ok := pagination(w, r, 9)
+	page, limit, ok := parsePagination(w, r, 9)
 	if !ok {
 		return
 	}
-	data, err := s.gallery.Photos.ListImages(r.Context(), domain.Pagination{Page: page, Limit: limit}, r.URL.Query().Get(colorParam))
+	data, err := s.gallery.Photos.ListImages(r.Context(), pagination.Pagination{Page: page, Limit: limit}, r.URL.Query().Get(colorParam))
 	if err != nil {
 		appError(w, err)
 		return

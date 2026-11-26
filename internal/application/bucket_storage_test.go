@@ -11,7 +11,7 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	galleryphoto "github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -189,11 +189,11 @@ func checkDeletedBucketRecords(t *testing.T, ctx context.Context, cfg Config, bl
 		t.Fatal(err)
 	}
 	defer empty.Repository.Close()
-	imagePage, err := empty.Gallery.Photos.ListImages(ctx, domain.Pagination{Page: 1, Limit: 10}, emptyEnvFile)
+	imagePage, err := empty.Gallery.Photos.ListImages(ctx, pagination.Pagination{Page: 1, Limit: 10}, emptyEnvFile)
 	if err != nil || imagePage.Total != 0 {
 		t.Fatal(bucketStorageTestResurrectedPhotoFailure, err)
 	}
-	postPage, err := empty.Blog.Posts.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, true)
+	postPage, err := empty.Blog.Posts.ListPosts(ctx, pagination.Pagination{Page: 1, Limit: 10}, true)
 	if err != nil || postPage.Total != 0 {
 		t.Fatal(bucketStorageTestResurrectedPostFailure, err)
 	}

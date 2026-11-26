@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -172,9 +172,9 @@ func objectError(err error) error {
 	if errors.As(err, &api) {
 		switch api.ErrorCode() {
 		case noSuchKeyCode, notFoundCode:
-			return domain.ErrNotFound
+			return storage.ErrNotFound
 		case preconditionFailedCode, conditionalConflictCode:
-			return domain.ErrConflict
+			return storage.ErrConflict
 		}
 	}
 	return err

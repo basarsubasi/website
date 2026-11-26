@@ -1,4 +1,6 @@
-package domain
+package pagination
+
+import "github.com/basarsubasi/website/internal/shared/domain/validation"
 
 const invalidPaginationMessage = "Invalid pagination"
 
@@ -13,7 +15,7 @@ type Page[T any] struct {
 
 func (p Pagination) Validate() error {
 	if p.Page < 1 || p.Page > 1000000 || p.Limit < 1 || p.Limit > 100 {
-		return Invalid(invalidPaginationMessage)
+		return validation.Invalid(invalidPaginationMessage)
 	}
 	return nil
 }

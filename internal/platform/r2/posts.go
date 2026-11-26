@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const postsPostMismatchMessage = "post object does not match catalog"
@@ -25,10 +26,10 @@ func (r *Repository) readPost(ctx context.Context, entry postEntry) (article.Pos
 	return post, nil
 }
 
-func (r *Repository) ListPosts(ctx context.Context, p domain.Pagination, includeDrafts bool) (domain.Page[article.Post], error) {
+func (r *Repository) ListPosts(ctx context.Context, p pagination.Pagination, includeDrafts bool) (pagination.Page[article.Post], error) {
 	state, err := r.snapshot(ctx)
 	if err != nil {
-		return domain.Page[article.Post]{}, err
+		return pagination.Page[article.Post]{}, err
 	}
 	items := []article.Post{}
 	for _, entry := range state.Posts {
@@ -65,7 +66,7 @@ func (r *Repository) GetPost(ctx context.Context, slug string) (article.Post, er
 			return r.readPost(ctx, entry)
 		}
 	}
-	return article.Post{}, domain.ErrNotFound
+	return article.Post{}, storage.ErrNotFound
 }
 
 func (r *Repository) GetPostByID(ctx context.Context, id string) (article.Post, error) {
@@ -75,7 +76,7 @@ func (r *Repository) GetPostByID(ctx context.Context, id string) (article.Post, 
 	}
 	entry, ok := state.Posts[id]
 	if !ok {
-		return article.Post{}, domain.ErrNotFound
+		return article.Post{}, storage.ErrNotFound
 	}
 	return r.readPost(ctx, entry)
 }
@@ -83,7 +84,7 @@ func (r *Repository) GetPostByID(ctx context.Context, id string) (article.Post, 
 func (r *Repository) CreatePost(ctx context.Context, post article.Post) (article.Post, error) {
 	return r.savePost(ctx, post.ID, post.Slug, func(_ postEntry, exists bool) (article.Post, error) {
 		if exists {
-			return article.Post{}, domain.ErrConflict
+			return article.Post{}, storage.ErrConflict
 		}
 		post.CreatedAt = time.Now().UTC().Format(timestampLayout)
 		post.UpdatedAt = post.CreatedAt
@@ -94,7 +95,7 @@ func (r *Repository) CreatePost(ctx context.Context, post article.Post) (article
 func (r *Repository) UpdatePost(ctx context.Context, id string, input article.PostInput) (article.Post, error) {
 	return r.savePost(ctx, id, input.Slug, func(entry postEntry, exists bool) (article.Post, error) {
 		if !exists {
-			return article.Post{}, domain.ErrNotFound
+			return article.Post{}, storage.ErrNotFound
 		}
 		post := entry.Metadata
 		post.Slug = input.Slug
@@ -113,7 +114,7 @@ func (r *Repository) DeletePost(ctx context.Context, id string) error {
 	return r.mutate(ctx, func(next *catalog) error {
 		entry, exists := next.Posts[id]
 		if !exists {
-			return domain.ErrNotFound
+			return storage.ErrNotFound
 		}
 		delete(next.Posts, id)
 		next.Garbage = append(next.Garbage, entry.ObjectKey)

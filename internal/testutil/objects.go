@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/basarsubasi/website/internal/platform/httpserver"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -91,7 +91,7 @@ func (m *Objects) Read(ctx context.Context, key string) ([]byte, string, error) 
 	}
 	item, ok := m.items[key]
 	if !ok {
-		return nil, emptyString, domain.ErrNotFound
+		return nil, emptyString, storage.ErrNotFound
 	}
 	return append([]byte{}, item.body...), item.etag, nil
 }
@@ -112,7 +112,7 @@ func (m *Objects) PutIf(ctx context.Context, key string, data []byte, etag strin
 	}
 	current, exists := m.items[key]
 	if (create && exists) || (!create && (!exists || current.etag != etag)) {
-		return emptyString, domain.ErrConflict
+		return emptyString, storage.ErrConflict
 	}
 	newETag := m.save(key, data, jsonContentType, nil)
 	if m.ambiguous {
@@ -148,7 +148,7 @@ func (m *Objects) UpdateMetadata(ctx context.Context, key, contentType string, m
 	}
 	item, exists := m.items[key]
 	if !exists {
-		return domain.ErrNotFound
+		return storage.ErrNotFound
 	}
 	item.metadata = maps.Clone(metadata)
 	item.contentType = contentType
@@ -253,10 +253,10 @@ func s3Handler(objects *Objects) http.Handler {
 
 func writeS3Error(w http.ResponseWriter, err error) {
 	status, code := 500, internalErrorCode
-	if err == domain.ErrNotFound {
+	if err == storage.ErrNotFound {
 		status, code = 404, noSuchKeyCode
 	}
-	if err == domain.ErrConflict {
+	if err == storage.ErrConflict {
 		status, code = 412, preconditionFailedCode
 	}
 	w.Header().Set(contentTypeHeader, xmlContentType)

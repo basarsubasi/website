@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
@@ -126,7 +126,7 @@ func (r *Repository) encodeCatalog(ctx context.Context, next *catalog) ([]byte, 
 		return nil, 0, err
 	}
 	if len(raw) > maxObjectJSON {
-		return nil, 0, domain.Invalid(oversizedManifestMessage)
+		return nil, 0, validation.Invalid(oversizedManifestMessage)
 	}
 	next.Version = root.Version
 	next.Parts = root.Parts
@@ -195,7 +195,7 @@ func (w *catalogPartWriter) flush(ctx context.Context) error {
 		return err
 	}
 	if len(data) > maxObjectJSON {
-		return domain.Invalid(oversizedRecordMessage)
+		return validation.Invalid(oversizedRecordMessage)
 	}
 	key := catalogPartKey(data)
 	if !slices.Contains(w.repo.state.Parts, key) {

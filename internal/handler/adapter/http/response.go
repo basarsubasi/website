@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
+	"github.com/basarsubasi/website/internal/shared/media"
 )
 
 const (
@@ -52,28 +54,28 @@ func fail(w http.ResponseWriter, status int, message string) {
 }
 
 func appError(w http.ResponseWriter, err error) {
-	var invalid *domain.ValidationError
-	var storage *domain.StorageError
+	var invalid *validation.Error
+	var storageErr *storage.Error
 	switch {
 	case errors.As(err, &invalid):
 		fail(w, http.StatusBadRequest, invalid.Error())
-	case errors.Is(err, domain.ErrNotFound):
+	case errors.Is(err, storage.ErrNotFound):
 		fail(w, http.StatusNotFound, notFoundMessage)
-	case errors.Is(err, domain.ErrConflict):
+	case errors.Is(err, storage.ErrConflict):
 		fail(w, http.StatusConflict, conflictMessage)
-	case errors.Is(err, domain.ErrUncertain):
+	case errors.Is(err, storage.ErrUncertain):
 		log.Printf(uncertainWriteLogFormat, err)
 		fail(w, http.StatusServiceUnavailable, uncertainWriteMessage)
-	case errors.Is(err, domain.ErrBusy):
+	case errors.Is(err, storage.ErrBusy):
 		w.Header().Set(responseRetryAfterHeader, storageRetrySeconds)
 		fail(w, http.StatusServiceUnavailable, storageBusyMessage)
-	case errors.Is(err, domain.ErrUnavailable):
+	case errors.Is(err, storage.ErrUnavailable):
 		fail(w, http.StatusServiceUnavailable, storageUnavailableMessage)
-	case errors.Is(err, domain.ErrTooLarge), errors.Is(err, domain.ErrVideoTooLarge), errors.Is(err, domain.ErrAudioTooLarge):
+	case errors.Is(err, media.ErrTooLarge), errors.Is(err, media.ErrVideoTooLarge), errors.Is(err, media.ErrAudioTooLarge):
 		fail(w, http.StatusRequestEntityTooLarge, err.Error())
-	case errors.As(err, &storage):
-		log.Printf(storageErrorLogFormat, storage.Err)
-		fail(w, http.StatusBadGateway, storage.Error())
+	case errors.As(err, &storageErr):
+		log.Printf(storageErrorLogFormat, storageErr.Err)
+		fail(w, http.StatusBadGateway, storageErr.Error())
 	default:
 		log.Printf(applicationErrorLogFormat, err)
 		fail(w, http.StatusInternalServerError, operationFailedMessage)
@@ -95,7 +97,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
-func pagination(w http.ResponseWriter, r *http.Request, defaultLimit int64) (int64, int64, bool) {
+func parsePagination(w http.ResponseWriter, r *http.Request, defaultLimit int64) (int64, int64, bool) {
 	page, limit := int64(1), defaultLimit
 	for key, target := range map[string]*int64{pageParam: &page, limitParam: &limit} {
 		if raw := r.URL.Query().Get(key); raw != responseEmptyString {

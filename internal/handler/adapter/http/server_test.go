@@ -24,7 +24,8 @@ import (
 	galleryphoto "github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/database"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/shared/media"
 	"github.com/basarsubasi/website/internal/testutil"
 )
@@ -232,9 +233,9 @@ func item[T any](t *testing.T, res *httptest.ResponseRecorder) T {
 	}
 	return body.Data
 }
-func page[T any](t *testing.T, res *httptest.ResponseRecorder) domain.Page[T] {
+func page[T any](t *testing.T, res *httptest.ResponseRecorder) pagination.Page[T] {
 	t.Helper()
-	var body domain.Page[T]
+	var body pagination.Page[T]
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +325,7 @@ func TestPhotoAPIAndReboot(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{photo.ObjectKey, galleryphoto.PreviewKey(photo.UUID)} {
-		if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, domain.ErrNotFound) {
+		if _, _, err := c.objects.Read(t.Context(), key); !errors.Is(err, storage.ErrNotFound) {
 			t.Fatal(retainedObjectFailure, key)
 		}
 	}

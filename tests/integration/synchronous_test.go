@@ -15,7 +15,7 @@ import (
 	"github.com/basarsubasi/website/internal/module/gallery/usecase/photos"
 	"github.com/basarsubasi/website/internal/platform/backup"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -87,7 +87,7 @@ func TestSynchronousFailureRetainsQueueAndRetry(t *testing.T) {
 	repo := open(t, filepath.Join(t.TempDir(), synchronousTestDatabaseFilename), backup)
 	lost := &lostReply{Target: backup, fail: true}
 	repo.RequireBackup(lost)
-	if _, err := repo.blog.CreatePost(ctx, article.Post{ID: postID, Slug: postID, Body: originalBody}); !errors.Is(err, domain.ErrUncertain) {
+	if _, err := repo.blog.CreatePost(ctx, article.Post{ID: postID, Slug: postID, Body: originalBody}); !errors.Is(err, storage.ErrUncertain) {
 		t.Fatalf(uncertainWriteFormat, err)
 	}
 	if count, err := repo.PendingBackups(ctx); err != nil || count != 1 {
@@ -163,7 +163,7 @@ func TestUnconfirmedPhotoBackupDoesNotDeleteUploadedObject(t *testing.T) {
 	raw, _ := base64.StdEncoding.DecodeString(onePixelPNGBase64)
 	objects.FailNext(metadataOperation, errR2Unavailable)
 	uploaded, err := service.UploadImage(ctx, photo.PhotoInput{Color: synchronousTestBlackAndWhite}, bytes.NewReader(raw), int64(len(raw)))
-	if !errors.Is(err, domain.ErrUncertain) {
+	if !errors.Is(err, storage.ErrUncertain) {
 		t.Fatal(err)
 	}
 	for _, key := range []string{uploaded.ObjectKey, photo.PreviewKey(uploaded.UUID)} {

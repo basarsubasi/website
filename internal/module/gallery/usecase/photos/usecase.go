@@ -5,11 +5,11 @@ import (
 	"io"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
 type Repository interface {
-	ListImages(context.Context, domain.Pagination, string) (domain.Page[photo.Image], error)
+	ListImages(context.Context, pagination.Pagination, string) (pagination.Page[photo.Image], error)
 	GetImage(context.Context, string) (photo.Image, error)
 	CreateImage(context.Context, photo.Image) (photo.Image, error)
 	UpdateImage(context.Context, string, photo.PhotoInput) (photo.Image, error)

@@ -8,7 +8,7 @@ import (
 	store "github.com/basarsubasi/website/gen/sqlc/blog"
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/platform/database"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
 const (
@@ -29,17 +29,17 @@ func (r *Repository) GetPost(ctx context.Context, slug string) (article.Post, er
 	return database.DecodePayload[article.Post](store.New(r.store.DB()).GetPublishedPost(ctx, slug))
 }
 
-func (r *Repository) ListPosts(ctx context.Context, pagination domain.Pagination, drafts bool) (domain.Page[article.Post], error) {
-	return database.ListPage[article.Post](ctx, r.store.DB(), pagination, func(tx *sql.Tx) (int64, error) {
+func (r *Repository) ListPosts(ctx context.Context, p pagination.Pagination, drafts bool) (pagination.Page[article.Post], error) {
+	return database.ListPage[article.Post](ctx, r.store.DB(), p, func(tx *sql.Tx) (int64, error) {
 		if drafts {
 			return store.New(tx).CountPosts(ctx)
 		}
 		return store.New(tx).CountPublishedPosts(ctx)
 	}, func(tx *sql.Tx) ([][]byte, error) {
 		if drafts {
-			return store.New(tx).ListPosts(ctx, store.ListPostsParams{PageLimit: int64(pagination.Limit), PageOffset: int64((pagination.Page - 1) * pagination.Limit)})
+			return store.New(tx).ListPosts(ctx, store.ListPostsParams{PageLimit: int64(p.Limit), PageOffset: int64((p.Page - 1) * p.Limit)})
 		}
-		return store.New(tx).ListPublishedPosts(ctx, store.ListPublishedPostsParams{PageLimit: int64(pagination.Limit), PageOffset: int64((pagination.Page - 1) * pagination.Limit)})
+		return store.New(tx).ListPublishedPosts(ctx, store.ListPublishedPostsParams{PageLimit: int64(p.Limit), PageOffset: int64((p.Page - 1) * p.Limit)})
 	})
 }
 

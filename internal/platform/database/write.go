@@ -10,7 +10,7 @@ import (
 	store "github.com/basarsubasi/website/gen/sqlc/storage"
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -55,7 +55,7 @@ func (r *Store) Change(ctx context.Context, fn func(*sql.Tx) error) error {
 	}
 	if r.backup != nil {
 		if err := r.FlushBackups(ctx, r.backup); err != nil {
-			return &domain.StorageError{Operation: syncOperation, Err: err}
+			return &storage.Error{Operation: syncOperation, Err: err}
 		}
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -73,7 +73,7 @@ func (r *Store) Change(ctx context.Context, fn func(*sql.Tx) error) error {
 		if err := r.FlushBackups(ctx, r.backup); err != nil {
 			// The SQLite commit happened: upload cleanup must not delete the object
 			// referenced by this record while its backup is pending.
-			return fmt.Errorf(uncertainWriteFormat, domain.ErrUncertain, err)
+			return fmt.Errorf(uncertainWriteFormat, storage.ErrUncertain, err)
 		}
 	}
 	return nil

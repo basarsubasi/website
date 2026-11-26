@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
 func DecodePayload[T any](raw []byte, err error) (T, error) {
@@ -18,8 +18,8 @@ func DecodePayload[T any](raw []byte, err error) (T, error) {
 }
 
 // Count and page reads share a snapshot so concurrent writes cannot skew totals.
-func ListPage[T any](ctx context.Context, db *sql.DB, p domain.Pagination, count func(*sql.Tx) (int64, error), list func(*sql.Tx) ([][]byte, error)) (domain.Page[T], error) {
-	result := domain.Page[T]{Data: []T{}, Page: p.Page, Limit: p.Limit}
+func ListPage[T any](ctx context.Context, db *sql.DB, p pagination.Pagination, count func(*sql.Tx) (int64, error), list func(*sql.Tx) ([][]byte, error)) (pagination.Page[T], error) {
+	result := pagination.Page[T]{Data: []T{}, Page: p.Page, Limit: p.Limit}
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return result, err

@@ -8,7 +8,7 @@ import (
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/backup"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 // Backup lazily opens R2. Existing SQLite databases can start during an outage.
@@ -88,7 +88,7 @@ func (b *Backup) RemoveImage(ctx context.Context, p photo.Image) error {
 		return err
 	}
 	err = repo.DeleteImage(ctx, p.UUID)
-	if errors.Is(err, domain.ErrNotFound) {
+	if errors.Is(err, storage.ErrNotFound) {
 		originalErr := b.objects.Delete(ctx, p.ObjectKey)
 		if p.PreviewURL != r2EmptyString {
 			return errors.Join(originalErr, b.objects.Delete(ctx, photo.PreviewKey(p.UUID)))
@@ -114,7 +114,7 @@ func (b *Backup) RemovePost(ctx context.Context, p article.Post) error {
 		return err
 	}
 	err = repo.DeletePost(ctx, p.ID)
-	if errors.Is(err, domain.ErrNotFound) {
+	if errors.Is(err, storage.ErrNotFound) {
 		return nil
 	}
 	return err

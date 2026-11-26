@@ -8,7 +8,8 @@ import (
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
@@ -22,9 +23,9 @@ var slugPattern = regexp.MustCompile(slugExpression)
 
 const MaxExcerptLength = 2000
 
-func (u *UseCase) ListPosts(ctx context.Context, p domain.Pagination, includeDrafts bool) (domain.Page[article.Post], error) {
+func (u *UseCase) ListPosts(ctx context.Context, p pagination.Pagination, includeDrafts bool) (pagination.Page[article.Post], error) {
 	if err := p.Validate(); err != nil {
-		return domain.Page[article.Post]{}, err
+		return pagination.Page[article.Post]{}, err
 	}
 	return u.repo.ListPosts(ctx, p, includeDrafts)
 }
@@ -35,12 +36,12 @@ func (u *UseCase) GetPost(ctx context.Context, slug string) (article.Post, error
 
 func (u *UseCase) SavePost(ctx context.Context, id string, p article.PostInput) (article.Post, error) {
 	if utf8.RuneCountInString(p.Excerpt) > MaxExcerptLength {
-		return article.Post{}, domain.Invalid(excerptTooLongMessage)
+		return article.Post{}, validation.Invalid(excerptTooLongMessage)
 	}
 	p.Slug = strings.TrimSpace(p.Slug)
 	p.Title = strings.TrimSpace(p.Title)
 	if !slugPattern.MatchString(p.Slug) || len(p.Slug) > 200 || p.Title == emptyString || len(p.Title) > 300 || strings.TrimSpace(p.Body) == emptyString || (p.Published != 0 && p.Published != 1) {
-		return article.Post{}, domain.Invalid(invalidPostMessage)
+		return article.Post{}, validation.Invalid(invalidPostMessage)
 	}
 	if err := article.ValidateAssetSources(p.Body, u.assetOrigin); err != nil {
 		return article.Post{}, err

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const readCacheEmptyString = ""
@@ -57,7 +57,7 @@ func (c *readCache) get(ctx context.Context, objects ObjectStore, key string) (*
 	if flight == nil {
 		if len(c.flights) >= maxConcurrentReads {
 			c.mu.Unlock()
-			return nil, domain.ErrBusy
+			return nil, storage.ErrBusy
 		}
 		flight = &readFlight{done: make(chan struct{})}
 		c.flights[key] = flight

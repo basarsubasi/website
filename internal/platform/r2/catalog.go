@@ -11,7 +11,7 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 )
 
 const (
@@ -86,11 +86,11 @@ func (r *Repository) commit(ctx context.Context, next catalog) error {
 		if readErr := r.load(reconcile); readErr == nil && r.state.Revision == next.Revision {
 			return nil
 		}
-		if errors.Is(err, domain.ErrConflict) {
-			return domain.ErrConflict
+		if errors.Is(err, storage.ErrConflict) {
+			return storage.ErrConflict
 		}
 		// A negative read cannot prove that an in-flight write won't commit later.
-		return fmt.Errorf(uncertainWriteFormat, domain.ErrUncertain, err)
+		return fmt.Errorf(uncertainWriteFormat, storage.ErrUncertain, err)
 	}
 	r.state = next
 	r.etag = etag

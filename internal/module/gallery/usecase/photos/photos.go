@@ -10,7 +10,9 @@ import (
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -28,12 +30,12 @@ const (
 	invalidDirectionMessage = "direction must be up or down"
 )
 
-func (u *UseCase) ListImages(ctx context.Context, p domain.Pagination, color string) (domain.Page[photo.Image], error) {
+func (u *UseCase) ListImages(ctx context.Context, p pagination.Pagination, color string) (pagination.Page[photo.Image], error) {
 	if err := p.Validate(); err != nil {
-		return domain.Page[photo.Image]{}, err
+		return pagination.Page[photo.Image]{}, err
 	}
 	if color != allColors && color != blackAndWhite && color != colorPhoto {
-		return domain.Page[photo.Image]{}, domain.Invalid(invalidColorMessage)
+		return pagination.Page[photo.Image]{}, validation.Invalid(invalidColorMessage)
 	}
 	return u.repo.ListImages(ctx, p, color)
 }
@@ -44,7 +46,7 @@ func (u *UseCase) GetImage(ctx context.Context, id string) (photo.Image, error) 
 
 func (u *UseCase) UploadImage(ctx context.Context, p photo.PhotoInput, file io.ReadSeeker, size int64) (photo.Image, error) {
 	if u.photos == nil {
-		return photo.Image{}, domain.ErrUnavailable
+		return photo.Image{}, storage.ErrUnavailable
 	}
 	id := uuid.NewV4().String()
 	metadata, err := photo.PhotoMetadata(p, id)
@@ -66,15 +68,15 @@ func (u *UseCase) UploadImage(ctx context.Context, p photo.PhotoInput, file io.R
 	previewURL, err := u.photos.Put(ctx, previewKey, bytes.NewReader(preview), int64(len(preview)), previewContentType, nil)
 	if err != nil {
 		u.cleanupUpload(ctx, previewKey)
-		return photo.Image{}, &domain.StorageError{Operation: uploadOperation, Err: err}
+		return photo.Image{}, &storage.Error{Operation: uploadOperation, Err: err}
 	}
 	imageURL, err := u.photos.Put(ctx, key, file, size, info.ContentType, metadata)
 	if err != nil {
 		u.cleanupUpload(ctx, key, previewKey)
-		return photo.Image{}, &domain.StorageError{Operation: uploadOperation, Err: err}
+		return photo.Image{}, &storage.Error{Operation: uploadOperation, Err: err}
 	}
 	photo, err := u.repo.CreateImage(ctx, photo.Image{Width: info.Width, Height: info.Height, UUID: id, ImageURL: imageURL, PreviewURL: previewURL, ObjectKey: key, Name: p.Name, Country: p.Country, City: p.City, YearTaken: p.YearTaken, FileType: info.ContentType, Color: p.Color})
-	if err != nil && !errors.Is(err, domain.ErrUncertain) {
+	if err != nil && !errors.Is(err, storage.ErrUncertain) {
 		u.cleanupUpload(ctx, key, previewKey)
 	}
 	return photo, err
@@ -104,7 +106,7 @@ func (u *UseCase) DeleteImage(ctx context.Context, id string) error {
 
 func (u *UseCase) MoveImage(ctx context.Context, id, direction string) error {
 	if direction != moveUp && direction != moveDown {
-		return domain.Invalid(invalidDirectionMessage)
+		return validation.Invalid(invalidDirectionMessage)
 	}
 	return u.repo.MoveImage(ctx, id, direction)
 }

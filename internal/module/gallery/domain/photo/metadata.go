@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
@@ -18,10 +18,10 @@ const (
 
 func PhotoMetadata(p PhotoInput, id string) (map[string]string, error) {
 	if p.Color != blackAndWhite && p.Color != colorPhoto {
-		return nil, domain.Invalid(invalidColorMessage)
+		return nil, validation.Invalid(invalidColorMessage)
 	}
 	if p.YearTaken < 0 || p.YearTaken > 9999 {
-		return nil, domain.Invalid(invalidYearMessage)
+		return nil, validation.Invalid(invalidYearMessage)
 	}
 	raw, _ := json.Marshal(struct {
 		UUID string `json:"uuid"`
@@ -29,7 +29,7 @@ func PhotoMetadata(p PhotoInput, id string) (map[string]string, error) {
 	}{id, p})
 	encoded := base64.RawURLEncoding.EncodeToString(raw)
 	if len(encoded) > 1900 {
-		return nil, domain.Invalid(metadataTooLongMessage)
+		return nil, validation.Invalid(metadataTooLongMessage)
 	}
 	return map[string]string{metadataKey: encoded}, nil
 }

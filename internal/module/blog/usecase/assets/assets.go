@@ -7,7 +7,8 @@ import (
 	"uuid"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -39,7 +40,7 @@ func (u *UseCase) UploadBlogAudio(ctx context.Context, file io.ReadSeeker, size 
 
 func (u *UseCase) upload(ctx context.Context, file io.ReadSeeker, size int64, prefix, operation string, inspect func(io.ReadSeeker, int64) (media.FileInfo, error)) (article.BlogAsset, error) {
 	if u.storage == nil {
-		return article.BlogAsset{}, domain.ErrUnavailable
+		return article.BlogAsset{}, storage.ErrUnavailable
 	}
 	info, err := inspect(file, size)
 	if err != nil {
@@ -49,7 +50,7 @@ func (u *UseCase) upload(ctx context.Context, file io.ReadSeeker, size int64, pr
 	defer cancel()
 	url, err := u.storage.Put(ctx, prefix+uuid.NewV4().String()+extensionSeparator+info.Extension, file, size, info.ContentType, nil)
 	if err != nil {
-		return article.BlogAsset{}, &domain.StorageError{Operation: operation, Err: err}
+		return article.BlogAsset{}, &storage.Error{Operation: operation, Err: err}
 	}
 	return article.BlogAsset{URL: url, Width: info.Width, Height: info.Height}, nil
 }
@@ -68,15 +69,15 @@ func (u *UseCase) DeleteBlogAudio(ctx context.Context, filename string) error {
 
 func (u *UseCase) delete(ctx context.Context, filename, prefix string, permitted func(string) bool, invalid, operation string) error {
 	if !permitted(filename) {
-		return domain.Invalid(invalid)
+		return validation.Invalid(invalid)
 	}
 	if u.storage == nil {
-		return domain.ErrUnavailable
+		return storage.ErrUnavailable
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if err := u.storage.Delete(ctx, prefix+filename); err != nil {
-		return &domain.StorageError{Operation: operation, Err: err}
+		return &storage.Error{Operation: operation, Err: err}
 	}
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -62,10 +62,10 @@ func TestPostBackupReplayPreservesRecordAndCleansReplacedObjects(t *testing.T) {
 		}
 	}
 	repo := open(t, objects)
-	if _, err := repo.CreatePost(ctx, post); !errors.Is(err, domain.ErrConflict) {
+	if _, err := repo.CreatePost(ctx, post); !errors.Is(err, storage.ErrConflict) {
 		t.Fatalf(restoredOverwriteFormat, err)
 	}
-	if _, err := repo.UpdatePost(ctx, missingID, article.PostInput{Slug: missingID}); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := repo.UpdatePost(ctx, missingID, article.PostInput{Slug: missingID}); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf(updateCreatedRecordFormat, err)
 	}
 }

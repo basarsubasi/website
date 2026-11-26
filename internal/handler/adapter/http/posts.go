@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
 const (
@@ -15,11 +15,11 @@ const (
 )
 
 func (s *Server) listPosts(w http.ResponseWriter, r *http.Request) {
-	page, limit, ok := pagination(w, r, 10)
+	page, limit, ok := parsePagination(w, r, 10)
 	if !ok {
 		return
 	}
-	data, err := s.blog.Posts.ListPosts(r.Context(), domain.Pagination{Page: page, Limit: limit}, r.URL.Path == adminPostsPath)
+	data, err := s.blog.Posts.ListPosts(r.Context(), pagination.Pagination{Page: page, Limit: limit}, r.URL.Path == adminPostsPath)
 	if err != nil {
 		appError(w, err)
 		return

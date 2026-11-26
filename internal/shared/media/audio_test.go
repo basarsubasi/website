@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
@@ -49,12 +49,12 @@ func TestInspectAudio(t *testing.T) {
 		bytes.Join([][]byte{raw, vorbis}, nil),
 	} {
 		_, err := InspectAudio(bytes.NewReader(data), int64(len(data)))
-		var invalid *domain.ValidationError
+		var invalid *validation.Error
 		if !errors.As(err, &invalid) {
 			t.Fatalf(unexpectedAudioResult, len(data), err)
 		}
 	}
-	if _, err := InspectAudio(bytes.NewReader(raw), MaxSize+1); !errors.Is(err, domain.ErrAudioTooLarge) {
+	if _, err := InspectAudio(bytes.NewReader(raw), MaxSize+1); !errors.Is(err, ErrAudioTooLarge) {
 		t.Fatalf(unexpectedAudioResult, MaxSize+1, err)
 	}
 }

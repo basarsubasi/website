@@ -1,10 +1,10 @@
 package r2
 
 import (
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
-func paginate[T any](items []T, p domain.Pagination) domain.Page[T] {
+func paginate[T any](items []T, p pagination.Pagination) pagination.Page[T] {
 	total := int64(len(items))
 	start := (p.Page - 1) * p.Limit
 	if start > total {
@@ -14,5 +14,5 @@ func paginate[T any](items []T, p domain.Pagination) domain.Page[T] {
 	if end > total {
 		end = total
 	}
-	return domain.Page[T]{Data: items[start:end], Total: total, Page: p.Page, Limit: p.Limit}
+	return pagination.Page[T]{Data: items[start:end], Total: total, Page: p.Page, Limit: p.Limit}
 }

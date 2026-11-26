@@ -8,7 +8,7 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/gen2brain/vpx/webp"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 	"github.com/basarsubasi/website/internal/shared/media"
 )
 
@@ -28,7 +28,7 @@ var previewSlot = make(chan struct{}, 1)
 // RenderPreview reads a validated upload and rewinds it for original-byte storage.
 func RenderPreview(ctx context.Context, file io.ReadSeeker, info media.FileInfo) ([]byte, error) {
 	if info.Width <= 0 || info.Height <= 0 || max(info.Width, info.Height) > previewDimensionLimit || info.Width > previewPixelLimit/info.Height {
-		return nil, domain.Invalid(previewTooLargeMessage)
+		return nil, validation.Invalid(previewTooLargeMessage)
 	}
 	select {
 	case previewSlot <- struct{}{}:
@@ -38,7 +38,7 @@ func RenderPreview(ctx context.Context, file io.ReadSeeker, info media.FileInfo)
 	}
 	src, err := imaging.Decode(file, imaging.AutoOrientation(true))
 	if err != nil {
-		return nil, domain.Invalid(invalidPreviewSource)
+		return nil, validation.Invalid(invalidPreviewSource)
 	}
 	if _, err = file.Seek(0, io.SeekStart); err != nil {
 		return nil, err

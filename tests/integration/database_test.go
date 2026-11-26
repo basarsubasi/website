@@ -16,7 +16,8 @@ import (
 	"github.com/basarsubasi/website/internal/platform/backup"
 	"github.com/basarsubasi/website/internal/platform/database"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -137,13 +138,13 @@ func TestSQLiteBackupRestoreAndDeletion(t *testing.T) {
 	// Restart before synchronization must not resurrect the remote copies.
 	repo.Close()
 	repo = open(t, path, backup)
-	if _, err = repo.blog.GetPostByID(ctx, post.ID); !errors.Is(err, domain.ErrNotFound) {
+	if _, err = repo.blog.GetPostByID(ctx, post.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(resurrectedPostFailure)
 	}
 	if err = repo.SyncBackups(ctx, backup); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = objects.Read(ctx, photo.ObjectKey); !errors.Is(err, domain.ErrNotFound) {
+	if _, _, err = objects.Read(ctx, photo.ObjectKey); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(retainedPhotoFailure)
 	}
 	snapshot, err := r2.NewBackup(objects).LoadSnapshot(ctx)
@@ -216,7 +217,7 @@ func TestFailedMutationDoesNotQueueBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = repo.blog.UpdatePost(ctx, second.ID, article.PostInput{Slug: first.Slug, Body: conflictTitle}); !errors.Is(err, domain.ErrConflict) {
+	if _, err = repo.blog.UpdatePost(ctx, second.ID, article.PostInput{Slug: first.Slug, Body: conflictTitle}); !errors.Is(err, storage.ErrConflict) {
 		t.Fatal(err)
 	}
 	if count, _ := repo.PendingBackups(ctx); count != 2 {
@@ -289,7 +290,7 @@ func TestImportFailureIsAtomicAndRetryable(t *testing.T) {
 	if err == nil {
 		t.Fatal(invalidImportFailure)
 	}
-	page, err := singleBlog.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, true)
+	page, err := singleBlog.ListPosts(ctx, pagination.Pagination{Page: 1, Limit: 10}, true)
 	if err != nil || page.Total != 0 {
 		t.Fatal(partialImportFailure)
 	}
@@ -328,7 +329,7 @@ func TestLargeLegacyExcerptsDoNotBlockBackupQueue(t *testing.T) {
 		t.Fatalf(blockedQueueFormat, pending)
 	}
 	restored := open(t, filepath.Join(t.TempDir(), databaseTestRestoredFilename), r2.NewBackup(objects))
-	page, err := restored.blog.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 100}, true)
+	page, err := restored.blog.ListPosts(ctx, pagination.Pagination{Page: 1, Limit: 100}, true)
 	if err != nil || len(page.Data) != 18 {
 		t.Fatalf(restoreCountFormat, len(page.Data), err)
 	}

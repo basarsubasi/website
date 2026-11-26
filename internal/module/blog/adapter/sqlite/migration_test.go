@@ -11,7 +11,7 @@ import (
 	blogsqlite "github.com/basarsubasi/website/internal/module/blog/adapter/sqlite"
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/platform/database"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
 const (
@@ -77,7 +77,7 @@ func TestLegacyPostSummaryMigrationAndTransactionalUpdates(t *testing.T) {
 	posts := blogsqlite.New(repo)
 	check := func(want article.Post, total int64) {
 		t.Helper()
-		page, err := posts.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, false)
+		page, err := posts.ListPosts(ctx, pagination.Pagination{Page: 1, Limit: 10}, false)
 		if err != nil || page.Total != total {
 			t.Fatalf(listMismatchFormat, page.Total, err)
 		}
@@ -148,7 +148,7 @@ func TestPublicListingDoesNotReadBodyPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	page, err := posts.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, false)
+	page, err := posts.ListPosts(ctx, pagination.Pagination{Page: 1, Limit: 10}, false)
 	if err != nil || len(page.Data) != 1 || page.Data[0].Title != postTitle || page.Data[0].Body != emptyBody {
 		t.Fatalf(readBodyFailureFormat, page, err)
 	}

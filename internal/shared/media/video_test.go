@@ -9,7 +9,7 @@ import (
 
 	"github.com/Eyevinn/mp4ff/mp4"
 
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/validation"
 )
 
 const (
@@ -54,12 +54,12 @@ func TestInspectVideoRejectsInvalidFiles(t *testing.T) {
 		bytes.ReplaceAll(raw, []byte(opusConfigBox), []byte(freeSpaceBox)),
 	} {
 		_, err := InspectVideo(bytes.NewReader(sample), int64(len(sample)))
-		var invalid *domain.ValidationError
+		var invalid *validation.Error
 		if !errors.As(err, &invalid) {
 			t.Fatalf(unexpectedVideoResult, err)
 		}
 	}
-	if _, err := InspectVideo(bytes.NewReader(raw), MaxVideoSize+1); !errors.Is(err, domain.ErrVideoTooLarge) {
+	if _, err := InspectVideo(bytes.NewReader(raw), MaxVideoSize+1); !errors.Is(err, ErrVideoTooLarge) {
 		t.Fatalf(unexpectedVideoResult, err)
 	}
 }

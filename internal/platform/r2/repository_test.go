@@ -11,7 +11,8 @@ import (
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/r2"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -99,7 +100,7 @@ func TestCatalogSurvivesRestartAndPostEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.GetPost(ctx, firstSlug); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := repo.GetPost(ctx, firstSlug); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(exposedDraftFailure)
 	}
 	restarted := open(t, objects)
@@ -116,10 +117,10 @@ func TestCatalogSurvivesRestartAndPostEdits(t *testing.T) {
 	if err != nil || post != updated {
 		t.Fatal(updatedPostLostFailure)
 	}
-	if _, err := again.GetPost(ctx, firstSlug); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := again.GetPost(ctx, firstSlug); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(oldSlugFailure)
 	}
-	if _, err := again.CreatePost(ctx, article.Post{ID: uuid.NewV4().String(), Slug: renamedSlug}); !errors.Is(err, domain.ErrConflict) {
+	if _, err := again.CreatePost(ctx, article.Post{ID: uuid.NewV4().String(), Slug: renamedSlug}); !errors.Is(err, storage.ErrConflict) {
 		t.Fatal(duplicateSlugFailure)
 	}
 	if err := again.DeletePost(ctx, id); err != nil {
@@ -130,7 +131,7 @@ func TestCatalogSurvivesRestartAndPostEdits(t *testing.T) {
 			t.Fatal(staleObjectFailure)
 		}
 	}
-	if _, err := open(t, objects).GetPostByID(ctx, id); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := open(t, objects).GetPostByID(ctx, id); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(restoredDeletedPostFailure)
 	}
 }
@@ -152,10 +153,10 @@ func TestPendingCleanupRetriesAfterRestart(t *testing.T) {
 		t.Fatal(objectLostFailure)
 	}
 	restarted := open(t, objects)
-	if _, err := restarted.GetImage(ctx, image.UUID); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := restarted.GetImage(ctx, image.UUID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(unpersistedDeleteFailure)
 	}
-	if _, _, err := objects.Read(ctx, key); !errors.Is(err, domain.ErrNotFound) {
+	if _, _, err := objects.Read(ctx, key); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatal(pendingDeleteFailure)
 	}
 }
@@ -173,7 +174,7 @@ func TestAmbiguousCommitIsReconciled(t *testing.T) {
 	}
 	objects.FailNext(writeOperation, errConnectionLost)
 	_, err = repo.UpdatePost(ctx, post.ID, article.PostInput{Slug: committedSlug, Body: newTitle, Published: 1})
-	if !errors.Is(err, domain.ErrUncertain) {
+	if !errors.Is(err, storage.ErrUncertain) {
 		t.Fatalf(missingAmbiguousErrorFormat, err)
 	}
 	if got, err := open(t, objects).GetPost(ctx, committedSlug); err != nil || got.Body != postBody {
@@ -216,7 +217,7 @@ func TestConcurrentCatalogUpdatesCannotOverwrite(t *testing.T) {
 		err := <-results
 		if err == nil {
 			successes++
-		} else if errors.Is(err, domain.ErrConflict) {
+		} else if errors.Is(err, storage.ErrConflict) {
 			conflicts++
 		} else {
 			t.Fatal(err)
@@ -225,7 +226,7 @@ func TestConcurrentCatalogUpdatesCannotOverwrite(t *testing.T) {
 	if successes != 1 || conflicts != 1 {
 		t.Fatalf(resultCountsFormat, successes, conflicts)
 	}
-	page, err := open(t, objects).ListPosts(context.Background(), domain.Pagination{Page: 1, Limit: 10}, false)
+	page, err := open(t, objects).ListPosts(context.Background(), pagination.Pagination{Page: 1, Limit: 10}, false)
 	if err != nil || page.Total != 1 {
 		t.Fatal(mergedWriteFailure)
 	}
@@ -260,10 +261,10 @@ func TestRepositoryThroughS3SDK(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := objects.PutIf(ctx, r2.CatalogKey, []byte(emptyJSONObject), oldETag, false); !errors.Is(err, domain.ErrConflict) {
+	if _, err := objects.PutIf(ctx, r2.CatalogKey, []byte(emptyJSONObject), oldETag, false); !errors.Is(err, storage.ErrConflict) {
 		t.Fatalf(acceptedStaleETagFormat, err)
 	}
-	if _, err := objects.PutIf(ctx, r2.CatalogKey, []byte(emptyJSONObject), emptyValue, true); !errors.Is(err, domain.ErrConflict) {
+	if _, err := objects.PutIf(ctx, r2.CatalogKey, []byte(emptyJSONObject), emptyValue, true); !errors.Is(err, storage.ErrConflict) {
 		t.Fatalf(unprotectedCatalogFormat, err)
 	}
 	updated, err := repo.UpdatePost(ctx, post.ID, article.PostInput{Slug: sdkSlug, Title: repositoryTestUpdatedTitle, Body: secondTitle, Published: 1})
@@ -278,7 +279,7 @@ func TestRepositoryThroughS3SDK(t *testing.T) {
 	if err := restarted.DeletePost(ctx, post.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := open(t, objects).GetPostByID(ctx, post.ID); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := open(t, objects).GetPostByID(ctx, post.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf(survivingPostFormat, err)
 	}
 }

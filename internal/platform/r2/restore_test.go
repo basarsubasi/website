@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/basarsubasi/website/internal/module/blog/domain/article"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/storage"
 	"github.com/basarsubasi/website/internal/testutil"
 )
 
@@ -75,7 +75,7 @@ func TestRestoreRejectsMissingPostWithoutPartialSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot, err := NewBackup(objects).LoadSnapshot(context.Background())
-	if !errors.Is(err, domain.ErrNotFound) || len(snapshot.Posts) != 0 || len(snapshot.Images) != 0 {
+	if !errors.Is(err, storage.ErrNotFound) || len(snapshot.Posts) != 0 || len(snapshot.Images) != 0 {
 		t.Fatalf(partialRestoreFormat, snapshot, err)
 	}
 }

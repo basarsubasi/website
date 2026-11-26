@@ -8,7 +8,7 @@ import (
 	store "github.com/basarsubasi/website/gen/sqlc/gallery"
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
 	"github.com/basarsubasi/website/internal/platform/database"
-	"github.com/basarsubasi/website/internal/shared/domain"
+	"github.com/basarsubasi/website/internal/shared/domain/pagination"
 )
 
 const (
@@ -25,11 +25,11 @@ func (r *Repository) GetImage(ctx context.Context, id string) (photo.Image, erro
 	return database.DecodePayload[photo.Image](store.New(r.store.DB()).GetImage(ctx, id))
 }
 
-func (r *Repository) ListImages(ctx context.Context, pagination domain.Pagination, color string) (domain.Page[photo.Image], error) {
-	return database.ListPage[photo.Image](ctx, r.store.DB(), pagination, func(tx *sql.Tx) (int64, error) {
+func (r *Repository) ListImages(ctx context.Context, p pagination.Pagination, color string) (pagination.Page[photo.Image], error) {
+	return database.ListPage[photo.Image](ctx, r.store.DB(), p, func(tx *sql.Tx) (int64, error) {
 		return store.New(tx).CountImages(ctx, color)
 	}, func(tx *sql.Tx) ([][]byte, error) {
-		return store.New(tx).ListImages(ctx, store.ListImagesParams{Color: color, PageLimit: int64(pagination.Limit), PageOffset: int64((pagination.Page - 1) * pagination.Limit)})
+		return store.New(tx).ListImages(ctx, store.ListImagesParams{Color: color, PageLimit: int64(p.Limit), PageOffset: int64((p.Page - 1) * p.Limit)})
 	})
 }
 
