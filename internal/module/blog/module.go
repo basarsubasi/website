@@ -8,10 +8,10 @@ import (
 )
 
 type Module struct {
-	*posts.UseCase
+	Posts  *posts.UseCase
 	Assets *assets.UseCase
 }
 
 func New(repo posts.Repository, storage assets.Storage, assetOrigin media.Origin) *Module {
-	return &Module{UseCase: posts.New(repo, assetOrigin), Assets: assets.New(storage)}
+	return &Module{Posts: posts.New(repo, assetOrigin), Assets: assets.New(storage)}
 }

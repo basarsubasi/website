@@ -62,7 +62,7 @@ func (s *Server) uploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	photo, err := s.gallery.UploadImage(r.Context(), p, file, header.Size)
+	photo, err := s.gallery.Photos.UploadImage(r.Context(), p, file, header.Size)
 	if err != nil {
 		appError(w, err)
 		return
@@ -74,7 +74,7 @@ func (s *Server) saveImage(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &p) {
 		return
 	}
-	photo, err := s.gallery.UpdateImage(r.Context(), r.PathValue(uuidParam), p)
+	photo, err := s.gallery.Photos.UpdateImage(r.Context(), r.PathValue(uuidParam), p)
 	if err != nil {
 		appError(w, err)
 		return
@@ -82,7 +82,7 @@ func (s *Server) saveImage(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, map[string]any{imagesDataField: photo})
 }
 func (s *Server) deleteImage(w http.ResponseWriter, r *http.Request) {
-	if err := s.gallery.DeleteImage(r.Context(), r.PathValue(uuidParam)); err != nil {
+	if err := s.gallery.Photos.DeleteImage(r.Context(), r.PathValue(uuidParam)); err != nil {
 		appError(w, err)
 		return
 	}
@@ -94,7 +94,7 @@ func (s *Server) listImages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := s.gallery.ListImages(r.Context(), domain.Pagination{Page: page, Limit: limit}, r.URL.Query().Get(colorParam))
+	data, err := s.gallery.Photos.ListImages(r.Context(), domain.Pagination{Page: page, Limit: limit}, r.URL.Query().Get(colorParam))
 	if err != nil {
 		appError(w, err)
 		return
@@ -103,7 +103,7 @@ func (s *Server) listImages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getImage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.gallery.GetImage(r.Context(), r.PathValue(uuidParam))
+	data, err := s.gallery.Photos.GetImage(r.Context(), r.PathValue(uuidParam))
 	if err != nil {
 		appError(w, err)
 		return
@@ -118,7 +118,7 @@ func (s *Server) moveImage(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &input) {
 		return
 	}
-	if err := s.gallery.MoveImage(r.Context(), r.PathValue(uuidParam), input.Direction); err != nil {
+	if err := s.gallery.Photos.MoveImage(r.Context(), r.PathValue(uuidParam), input.Direction); err != nil {
 		appError(w, err)
 		return
 	}

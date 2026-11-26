@@ -15,6 +15,10 @@ import (
 )
 
 const (
+	allColors               = ""
+	blackAndWhite           = "bw"
+	colorPhoto              = "color"
+	invalidColorMessage     = "color must be bw or color"
 	objectKeyPrefix         = "photos/"
 	extensionSeparator      = "."
 	uploadOperation         = "upload photo"
@@ -23,6 +27,20 @@ const (
 	moveDown                = "down"
 	invalidDirectionMessage = "direction must be up or down"
 )
+
+func (u *UseCase) ListImages(ctx context.Context, p domain.Pagination, color string) (domain.Page[photo.Image], error) {
+	if err := p.Validate(); err != nil {
+		return domain.Page[photo.Image]{}, err
+	}
+	if color != allColors && color != blackAndWhite && color != colorPhoto {
+		return domain.Page[photo.Image]{}, domain.Invalid(invalidColorMessage)
+	}
+	return u.repo.ListImages(ctx, p, color)
+}
+
+func (u *UseCase) GetImage(ctx context.Context, id string) (photo.Image, error) {
+	return u.repo.GetImage(ctx, id)
+}
 
 func (u *UseCase) UploadImage(ctx context.Context, p photo.PhotoInput, file io.ReadSeeker, size int64) (photo.Image, error) {
 	if u.photos == nil {

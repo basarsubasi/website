@@ -5,9 +5,12 @@ import (
 	"io"
 
 	"github.com/basarsubasi/website/internal/module/gallery/domain/photo"
+	"github.com/basarsubasi/website/internal/shared/domain"
 )
 
 type Repository interface {
+	ListImages(context.Context, domain.Pagination, string) (domain.Page[photo.Image], error)
+	GetImage(context.Context, string) (photo.Image, error)
 	CreateImage(context.Context, photo.Image) (photo.Image, error)
 	UpdateImage(context.Context, string, photo.PhotoInput) (photo.Image, error)
 	DeleteImage(context.Context, string) error

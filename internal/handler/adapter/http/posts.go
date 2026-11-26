@@ -19,7 +19,7 @@ func (s *Server) listPosts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := s.blog.ListPosts(r.Context(), domain.Pagination{Page: page, Limit: limit}, r.URL.Path == adminPostsPath)
+	data, err := s.blog.Posts.ListPosts(r.Context(), domain.Pagination{Page: page, Limit: limit}, r.URL.Path == adminPostsPath)
 	if err != nil {
 		appError(w, err)
 		return
@@ -28,7 +28,7 @@ func (s *Server) listPosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getPost(w http.ResponseWriter, r *http.Request) {
-	data, err := s.blog.GetPost(r.Context(), r.PathValue(slugParam))
+	data, err := s.blog.Posts.GetPost(r.Context(), r.PathValue(slugParam))
 	if err != nil {
 		appError(w, err)
 		return
@@ -41,7 +41,7 @@ func (s *Server) savePost(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &p) {
 		return
 	}
-	post, err := s.blog.SavePost(r.Context(), r.PathValue(idParam), p)
+	post, err := s.blog.Posts.SavePost(r.Context(), r.PathValue(idParam), p)
 	if err != nil {
 		appError(w, err)
 		return
@@ -54,7 +54,7 @@ func (s *Server) savePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deletePost(w http.ResponseWriter, r *http.Request) {
-	if err := s.blog.DeletePost(r.Context(), r.PathValue(idParam)); err != nil {
+	if err := s.blog.Posts.DeletePost(r.Context(), r.PathValue(idParam)); err != nil {
 		appError(w, err)
 		return
 	}

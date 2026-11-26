@@ -85,7 +85,7 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	if err := png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
 		t.Fatal(err)
 	}
-	photo, err := app.Gallery.UploadImage(ctx, galleryphoto.PhotoInput{Name: galleryName, Color: colorPhoto}, bytes.NewReader(data.Bytes()), int64(data.Len()))
+	photo, err := app.Gallery.Photos.UploadImage(ctx, galleryphoto.PhotoInput{Name: galleryName, Color: colorPhoto}, bytes.NewReader(data.Bytes()), int64(data.Len()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestSeparateBucketsUploadBackupRestoreAndDelete(t *testing.T) {
 	if !strings.HasPrefix(photo.ImageURL, endpoint.URL+photoURLPrefix) || !strings.HasPrefix(imageURL, endpoint.URL+blogImageURLPrefix) {
 		t.Fatalf(wrongBucketsFormat, photo.ImageURL, imageURL)
 	}
-	post, err := app.Blog.SavePost(ctx, emptyEnvFile, article.PostInput{Slug: postSlug, Title: postTitle, Body: imageURL, Published: 1})
+	post, err := app.Blog.Posts.SavePost(ctx, emptyEnvFile, article.PostInput{Slug: postSlug, Title: postTitle, Body: imageURL, Published: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,22 +158,22 @@ func restoreAndDelete(t *testing.T, ctx context.Context, cfg Config, photo galle
 		t.Fatal(err)
 	}
 	defer restored.Repository.Close()
-	if got, err := restored.Gallery.GetImage(ctx, photo.UUID); err != nil || got != photo {
+	if got, err := restored.Gallery.Photos.GetImage(ctx, photo.UUID); err != nil || got != photo {
 		t.Fatal(photoRestoreFailure, err)
 	}
-	if got, err := restored.Blog.GetPost(ctx, post.Slug); err != nil || got != post {
+	if got, err := restored.Blog.Posts.GetPost(ctx, post.Slug); err != nil || got != post {
 		t.Fatal(postRestoreFailure, err)
 	}
-	if _, err := restored.Gallery.UpdateImage(ctx, photo.UUID, galleryphoto.PhotoInput{Name: editedName, Color: bucketStorageTestBlackAndWhite}); err != nil {
+	if _, err := restored.Gallery.Photos.UpdateImage(ctx, photo.UUID, galleryphoto.PhotoInput{Name: editedName, Color: bucketStorageTestBlackAndWhite}); err != nil {
 		t.Fatal(err)
 	}
 	if err := restored.Repository.SyncBackups(ctx, restored.Backup); err != nil {
 		t.Fatal(wrongMetadataBucketFailure, err)
 	}
-	if err := restored.Gallery.DeleteImage(ctx, photo.UUID); err != nil {
+	if err := restored.Gallery.Photos.DeleteImage(ctx, photo.UUID); err != nil {
 		t.Fatal(err)
 	}
-	if err := restored.Blog.DeletePost(ctx, post.ID); err != nil {
+	if err := restored.Blog.Posts.DeletePost(ctx, post.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := restored.Repository.SyncBackups(ctx, restored.Backup); err != nil {
@@ -189,11 +189,11 @@ func checkDeletedBucketRecords(t *testing.T, ctx context.Context, cfg Config, bl
 		t.Fatal(err)
 	}
 	defer empty.Repository.Close()
-	imagePage, err := empty.Gallery.ListImages(ctx, domain.Pagination{Page: 1, Limit: 10}, emptyEnvFile)
+	imagePage, err := empty.Gallery.Photos.ListImages(ctx, domain.Pagination{Page: 1, Limit: 10}, emptyEnvFile)
 	if err != nil || imagePage.Total != 0 {
 		t.Fatal(bucketStorageTestResurrectedPhotoFailure, err)
 	}
-	postPage, err := empty.Blog.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, true)
+	postPage, err := empty.Blog.Posts.ListPosts(ctx, domain.Pagination{Page: 1, Limit: 10}, true)
 	if err != nil || postPage.Total != 0 {
 		t.Fatal(bucketStorageTestResurrectedPostFailure, err)
 	}

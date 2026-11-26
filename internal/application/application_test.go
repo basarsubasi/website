@@ -332,15 +332,15 @@ func TestEphemeralApplicationRestoresAcknowledgedWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	png, _ := base64.StdEncoding.DecodeString(onePixelPNGBase64)
-	first, err := app.Gallery.UploadImage(ctx, photo.PhotoInput{Name: firstPhotoName, Color: applicationTestBlackAndWhite}, bytes.NewReader(png), int64(len(png)))
+	first, err := app.Gallery.Photos.UploadImage(ctx, photo.PhotoInput{Name: firstPhotoName, Color: applicationTestBlackAndWhite}, bytes.NewReader(png), int64(len(png)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := app.Gallery.UploadImage(ctx, photo.PhotoInput{Name: secondPhotoName, Color: applicationTestBlackAndWhite}, bytes.NewReader(png), int64(len(png)))
+	second, err := app.Gallery.Photos.UploadImage(ctx, photo.PhotoInput{Name: secondPhotoName, Color: applicationTestBlackAndWhite}, bytes.NewReader(png), int64(len(png)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := app.Gallery.MoveImage(ctx, first.UUID, moveUp); err != nil {
+	if err := app.Gallery.Photos.MoveImage(ctx, first.UUID, moveUp); err != nil {
 		t.Fatal(err)
 	}
 	// Reopen with the same configuration while the old SQLite still exists:
@@ -357,10 +357,10 @@ func TestEphemeralApplicationRestoresAcknowledgedWrites(t *testing.T) {
 	if err != nil || len(page.Data) != 2 || page.Data[0].UUID != first.UUID {
 		t.Fatal(page, err)
 	}
-	if err := app.Gallery.DeleteImage(ctx, second.UUID); err != nil {
+	if err := app.Gallery.Photos.DeleteImage(ctx, second.UUID); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.Blog.DeletePost(ctx, post.ID); err != nil {
+	if err := app.Blog.Posts.DeletePost(ctx, post.ID); err != nil {
 		t.Fatal(err)
 	}
 	again, err := New(cfg)
